@@ -1,0 +1,71 @@
+{
+	"name" : "Mutual Fund Portfolios",
+	"route" : "mf/portfolios",
+	"description" : "<p>Mutual Fund Portfolios</p>",
+	"module_type" : "components",
+	"app_type" : "fintech",
+	"category" : "mutualfunds",
+	"version" : "0.0.0",
+	"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-components-mutualfunds-mfportfolios",
+	"class" : "Apps\\Fintech\\Components\\Mf\\Portfolios\\PortfoliosComponent",
+	"dependencies" : 
+	{
+		"core" : 
+		{
+			"name" : "Core",
+			"version" : "0.0.0-rc.12",
+			"repo" : "https://github.com/sp-framework/core"
+		},
+		"apptype" : 
+		{
+			"name" : "Fintech",
+			"version" : "0.3.0",
+			"repo" : "https://github.com/sp-fintech/fintech"
+		},
+		"packages" : 
+		[
+			{
+				"name" : "MfPortfolios",
+				"version" : "0.0.0",
+				"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mfportfolios"
+			}
+		],
+		"middlewares" : [],
+		"views" : [],
+		"externals" : 
+		{
+			"composer" : 
+			{
+				"require" : []
+			},
+			"config" : 
+			{
+				"allow-plugins" : []
+			},
+			"extra" : 
+			{
+				"patches" : []
+			}
+		}
+	},
+	"menu" : 
+	{
+		"mf" : 
+		{
+			"title" : "mf",
+			"icon" : "file-invoice-dollar",
+			"childs" : 
+			{
+				"portfolios" : 
+				{
+					"title" : "portfolios",
+					"icon" : "address-book",
+					"link" : "mf/portfolios"
+				}
+			}
+		},
+		"seq" : "0"
+	},
+	"settings" : [],
+	"widgets" : []
+}
