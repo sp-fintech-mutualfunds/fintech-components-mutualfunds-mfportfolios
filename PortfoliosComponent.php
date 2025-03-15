@@ -2,6 +2,7 @@
 
 namespace Apps\Fintech\Components\Mf\Portfolios;
 
+use Apps\Fintech\Packages\Accounts\Balances\AccountsBalances;
 use Apps\Fintech\Packages\Accounts\Users\AccountsUsers;
 use Apps\Fintech\Packages\Adminltetags\Traits\DynamicTable;
 use Apps\Fintech\Packages\Mf\Amcs\MfAmcs;
@@ -64,16 +65,35 @@ class PortfoliosComponent extends BaseComponent
                     return $this->throwIdNotFound();
                 }
 
-                if (!$portfolio['timeline']) {
-                    $portfolio['timeline'] = [];
+                $this->view->mode = 'edit';
+                if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
+                    $this->view->mode = 'timeline';
+
+                    if (!$portfolio['timeline']) {
+                        $portfolio['timeline'] = [];
+                    }
                 }
 
-                $portfolio['equity_balance'] =
+                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                    foreach ($portfolio['transactions'] as &$transaction) {
+                        $transaction['amount'] =
+                            str_replace('EN_ ',
+                                        '',
+                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                            ->formatCurrency($transaction['amount'], 'en_IN')
+                            );
+                    }
+                }
+
+                $usersBalancePackage = $this->usePackage(AccountsBalances::class);
+                $userBalance = $usersBalancePackage->recalculateUserEquity(['user_id' => $portfolio['user_id']]);
+                $portfolio['user_equity_balance'] =
                     str_replace('EN_ ',
                                 '',
                                 (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                    ->formatCurrency($portfolio['equity_balance'], 'en_IN')
+                                    ->formatCurrency($userBalance['equity_balance'], 'en_IN')
                     );
+
                 $portfolio['invested_amount'] =
                     str_replace('EN_ ',
                                 '',
