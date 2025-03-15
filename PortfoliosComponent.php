@@ -85,15 +85,6 @@ class PortfoliosComponent extends BaseComponent
                     }
                 }
 
-                $usersBalancePackage = $this->usePackage(AccountsBalances::class);
-                $userBalance = $usersBalancePackage->recalculateUserEquity(['user_id' => $portfolio['user_id']]);
-                $portfolio['user_equity_balance'] =
-                    str_replace('EN_ ',
-                                '',
-                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                    ->formatCurrency($userBalance['equity_balance'], 'en_IN')
-                    );
-
                 $portfolio['invested_amount'] =
                     str_replace('EN_ ',
                                 '',
@@ -114,16 +105,6 @@ class PortfoliosComponent extends BaseComponent
                                     ->formatCurrency($portfolio['profit_loss'], 'en_IN')
                     );
 
-                // if (count($portfolio['balances']) > 0) {
-                //     foreach ($portfolio['balances'] as &$balance) {
-                //         $balance['total_value'] =
-                //             str_replace('EN_ ',
-                //                         '',
-                //                         (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                //                             ->formatCurrency($balance['total_value'], 'en_IN')
-                //             );
-                //     }
-                // }
                 $this->view->portfolio = $portfolio;
             }
 
