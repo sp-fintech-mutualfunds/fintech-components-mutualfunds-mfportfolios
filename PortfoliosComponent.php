@@ -2,10 +2,12 @@
 
 namespace Apps\Fintech\Components\Mf\Portfolios;
 
+use Apps\Fintech\Packages\Accounts\Balances\AccountsBalances;
 use Apps\Fintech\Packages\Accounts\Users\AccountsUsers;
 use Apps\Fintech\Packages\Adminltetags\Traits\DynamicTable;
 use Apps\Fintech\Packages\Mf\Amcs\MfAmcs;
 use Apps\Fintech\Packages\Mf\Portfolios\MfPortfolios;
+use Apps\Fintech\Packages\Mf\Schemes\MfSchemes;
 use Apps\Fintech\Packages\Mf\Transactions\MfTransactions;
 use System\Base\BaseComponent;
 
@@ -64,16 +66,56 @@ class PortfoliosComponent extends BaseComponent
                     return $this->throwIdNotFound();
                 }
 
-                if (!$portfolio['timeline']) {
-                    $portfolio['timeline'] = [];
+                $this->view->mode = 'edit';
+                if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
+                    $this->view->mode = 'timeline';
+
+                    if (!$portfolio['timeline']) {
+                        $portfolio['timeline'] = [];
+                    }
                 }
 
-                $portfolio['equity_balance'] =
-                    str_replace('EN_ ',
-                                '',
-                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                    ->formatCurrency($portfolio['equity_balance'], 'en_IN')
-                    );
+                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                    $schemesPackage = $this->usepackage(MfSchemes::class);
+
+                    foreach ($portfolio['transactions'] as &$transaction) {
+                        if ($this->config->databasetype === 'db') {
+                            $conditions =
+                                [
+                                    'conditions'    => 'amfi_code = :amfi_code:',
+                                    'bind'          =>
+                                        [
+                                            'amfi_code'       => (int) $transaction['amfi_code'],
+                                        ]
+                                ];
+                        } else {
+                            $conditions =
+                                [
+                                    'conditions'    => ['amfi_code', '=', (int) $transaction['amfi_code']]
+                                ];
+                        }
+
+                        $scheme = $schemesPackage->getByParams($conditions);
+
+                        if ($scheme && isset($scheme[0])) {
+                            $transaction['amfi_code'] = $scheme[0]['name'];
+                        }
+
+                        $transaction['amount'] =
+                            str_replace('EN_ ',
+                                        '',
+                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                            ->formatCurrency($transaction['amount'], 'en_IN')
+                            );
+                        $transaction['latest_value'] =
+                            str_replace('EN_ ',
+                                        '',
+                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                            ->formatCurrency($transaction['latest_value'], 'en_IN')
+                            );
+                    }
+                }
+
                 $portfolio['invested_amount'] =
                     str_replace('EN_ ',
                                 '',
@@ -87,23 +129,7 @@ class PortfoliosComponent extends BaseComponent
                                 (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
                                     ->formatCurrency($portfolio['total_value'], 'en_IN')
                     );
-                $portfolio['profit_loss'] =
-                    str_replace('EN_ ',
-                                '',
-                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                    ->formatCurrency($portfolio['profit_loss'], 'en_IN')
-                    );
 
-                // if (count($portfolio['balances']) > 0) {
-                //     foreach ($portfolio['balances'] as &$balance) {
-                //         $balance['total_value'] =
-                //             str_replace('EN_ ',
-                //                         '',
-                //                         (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                //                             ->formatCurrency($balance['total_value'], 'en_IN')
-                //             );
-                //     }
-                // }
                 $this->view->portfolio = $portfolio;
             }
 
@@ -134,17 +160,17 @@ class PortfoliosComponent extends BaseComponent
                         if ($data['account_id'] !== $this->access->auth->account()['id']) {
                             unset($dataArr[$key]);
                         } else {
+                            $data['invested_amount'] =
+                                str_replace('EN_ ',
+                                            '',
+                                            (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                ->formatCurrency($data['invested_amount'], 'en_IN')
+                                );
                             $data['total_value'] =
                                 str_replace('EN_ ',
                                             '',
                                             (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
                                                 ->formatCurrency($data['total_value'], 'en_IN')
-                                );
-                            $data['profit_loss'] =
-                                str_replace('EN_ ',
-                                            '',
-                                            (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                ->formatCurrency($data['profit_loss'], 'en_IN')
                                 );
                         }
                     }
@@ -157,13 +183,14 @@ class PortfoliosComponent extends BaseComponent
             package: $this->mfPortfoliosPackage,
             postUrl: 'mf/portfolios/view',
             postUrlParams: $conditions,
-            columnsForTable: ['account_id', 'name', 'total_value', 'profit_loss'],
+            columnsForTable: ['account_id', 'name', 'invested_amount', 'total_value', 'xirr'],
             withFilter : true,
-            columnsForFilter : ['name', 'total_value', 'profit_loss'],
+            columnsForFilter : ['name', 'invested_amount', 'total_value', 'xirr'],
             controlActions : $controlActions,
             dtNotificationTextFromColumn: 'name',
             excludeColumns : ['account_id'],
-            dtReplaceColumns: $replaceColumns
+            dtReplaceColumns: $replaceColumns,
+            dtReplaceColumnsTitle : ['invested_amount' => $this->view->currencySymbol . ' Invested Amount', 'total_value' => $this->view->currencySymbol . ' Total Value']
         );
 
         $this->view->pick('portfolios/list');
