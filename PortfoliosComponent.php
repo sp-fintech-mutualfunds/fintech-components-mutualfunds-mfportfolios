@@ -57,6 +57,8 @@ class PortfoliosComponent extends BaseComponent
 
             $this->view->users = $users;
 
+            $canSellTransactions = [];
+
             if ($this->getData()['id'] != 0) {
                 $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
@@ -98,7 +100,40 @@ class PortfoliosComponent extends BaseComponent
                         $scheme = $schemesPackage->getByParams($conditions);
 
                         if ($scheme && isset($scheme[0])) {
-                            $transaction['amfi_code'] = $scheme[0]['name'];
+                            $transaction['scheme'] = $scheme[0];
+                            $scheme = $schemesPackage->getSchemeById($transaction['scheme']['id']);
+
+                            if ($transaction['type'] === 'buy' && $transaction['status'] === 'open') {
+                                $transaction['available_units'] = $transaction['units_bought'];
+
+                                if ($transaction['units_sold'] > 0) {
+                                    $transaction['available_units'] = $transaction['units_bought'] - $transaction['units_sold'];
+                                }
+
+                                if (isset($canSellTransactions[$transaction['amfi_code']])) {
+                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] += $transaction['available_units'];
+                                } else {
+                                    $canSellTransactions[$transaction['amfi_code']] = $transaction;
+                                }
+                            } else {
+                                $transaction['amfi_code'] = $scheme['name'];
+
+                                continue;
+                            }
+
+                            $canSellTransactions[$transaction['amfi_code']]['available_units'] = round($canSellTransactions[$transaction['amfi_code']]['available_units'], 3);
+
+                            $canSellTransactions[$transaction['amfi_code']]['available_amount'] =
+                                str_replace('EN_ ',
+                                            '',
+                                            (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                ->formatCurrency(
+                                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] * $scheme['navs']['latest_nav'],
+                                                    'en_IN'
+                                                )
+                                );
+
+                            $transaction['amfi_code'] = $scheme['name'];
                         }
 
                         $transaction['amount'] =
@@ -132,6 +167,8 @@ class PortfoliosComponent extends BaseComponent
 
                 $this->view->portfolio = $portfolio;
             }
+
+            $this->view->canSellTransactions = $canSellTransactions;
 
             $this->view->pick('portfolios/view');
 
@@ -172,6 +209,14 @@ class PortfoliosComponent extends BaseComponent
                                             (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
                                                 ->formatCurrency($data['total_value'], 'en_IN')
                                 );
+
+                            if ($data['xirr'] < 0) {
+                                $data['xirr'] = '<span class="text-danger">' . $data['xirr'] . '</span>';
+                            } else if ($data['xirr'] > 0) {
+                                $data['xirr'] = '<span class="text-success">' . $data['xirr'] . '</span>';
+                            } else if ($data['xirr'] === 0) {
+                                $data['xirr'] = '<span class="text-primary">' . $data['xirr'] . '</span>';
+                            }
                         }
                     }
                 }
@@ -220,6 +265,22 @@ class PortfoliosComponent extends BaseComponent
         $this->requestIsPost();
 
         $this->mfPortfoliosPackage->updatePortfolio($this->postData());
+
+        $this->addResponse(
+            $this->mfPortfoliosPackage->packagesData->responseMessage,
+            $this->mfPortfoliosPackage->packagesData->responseCode,
+            $this->mfPortfoliosPackage->packagesData->responseData ?? []
+        );
+    }
+
+    /**
+     * @acl(name=remove)
+     */
+    public function removeAction()
+    {
+        $this->requestIsPost();
+
+        $this->mfPortfoliosPackage->removePortfolio($this->postData());
 
         $this->addResponse(
             $this->mfPortfoliosPackage->packagesData->responseMessage,
