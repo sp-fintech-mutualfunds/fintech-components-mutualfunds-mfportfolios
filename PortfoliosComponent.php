@@ -118,6 +118,19 @@ class PortfoliosComponent extends BaseComponent
                             } else {
                                 $transaction['amfi_code'] = $scheme['name'];
 
+                                $transaction['amount'] =
+                                    str_replace('EN_ ',
+                                                '',
+                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                    ->formatCurrency($transaction['amount'], 'en_IN')
+                                    );
+                                $transaction['latest_value'] =
+                                    str_replace('EN_ ',
+                                                '',
+                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                    ->formatCurrency($transaction['latest_value'], 'en_IN')
+                                    );
+
                                 continue;
                             }
 
@@ -164,6 +177,22 @@ class PortfoliosComponent extends BaseComponent
                                 (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
                                     ->formatCurrency($portfolio['total_value'], 'en_IN')
                     );
+
+                $portfolio['profit_loss'] =
+                    str_replace('EN_ ',
+                                '',
+                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                    ->formatCurrency($portfolio['profit_loss'], 'en_IN')
+                    );
+
+                if (!$portfolio['xirr']) {
+                    $portfolio['xirr'] = 0;
+                }
+
+                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                    $portfolio['transactions'] = msort($portfolio['transactions'], 'date');
+                    $portfolio['transactions'] = array_reverse($portfolio['transactions']);
+                }
 
                 $this->view->portfolio = $portfolio;
             }
