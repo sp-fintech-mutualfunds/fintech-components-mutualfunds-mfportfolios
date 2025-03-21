@@ -116,8 +116,9 @@ class PortfoliosComponent extends BaseComponent
                                     $canSellTransactions[$transaction['amfi_code']] = $transaction;
                                 }
                             } else {
-                                // $transaction['amfi_code'] = $scheme['name'];
-                                // $transaction['scheme_name'] = $scheme['name'];
+                                if (!isset($canSellTransactions[$transaction['amfi_code']])) {
+                                    $canSellTransactions[$transaction['amfi_code']] = $transaction;
+                                }
 
                                 $transaction['amount'] =
                                     str_replace('EN_ ',
@@ -146,9 +147,6 @@ class PortfoliosComponent extends BaseComponent
                                                     'en_IN'
                                                 )
                                 );
-
-                            // $transaction['amfi_code'] = $scheme['name'];
-                            // $transaction['scheme_name'] = $scheme['name'];
                         }
 
                         $transaction['amount'] =
