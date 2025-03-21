@@ -59,9 +59,9 @@ class PortfoliosComponent extends BaseComponent
 
             $canSellTransactions = [];
 
-            if ($this->getData()['id'] != 0) {
-                $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
+            $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
+            if ($this->getData()['id'] != 0) {
                 $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
                 if (!$portfolio) {
@@ -116,7 +116,8 @@ class PortfoliosComponent extends BaseComponent
                                     $canSellTransactions[$transaction['amfi_code']] = $transaction;
                                 }
                             } else {
-                                $transaction['amfi_code'] = $scheme['name'];
+                                // $transaction['amfi_code'] = $scheme['name'];
+                                // $transaction['scheme_name'] = $scheme['name'];
 
                                 $transaction['amount'] =
                                     str_replace('EN_ ',
@@ -146,7 +147,8 @@ class PortfoliosComponent extends BaseComponent
                                                 )
                                 );
 
-                            $transaction['amfi_code'] = $scheme['name'];
+                            // $transaction['amfi_code'] = $scheme['name'];
+                            // $transaction['scheme_name'] = $scheme['name'];
                         }
 
                         $transaction['amount'] =
