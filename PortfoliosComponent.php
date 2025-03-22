@@ -72,9 +72,14 @@ class PortfoliosComponent extends BaseComponent
                 if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
                     $this->view->mode = 'timeline';
 
-                    if (!$portfolio['timeline']) {
-                        $portfolio['timeline'] = [];
-                    }
+                    // if ($portfolio['recalculate_timeline']) {
+                        $this->mfTransactionsPackage->recalculatePortfolioTransactions(
+                            [
+                                'portfolio_id' => $this->getData()['id'],
+                                'timelinemode' => true
+                            ]
+                        );
+                    // }
                 }
 
                 if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
@@ -111,7 +116,11 @@ class PortfoliosComponent extends BaseComponent
                                 }
 
                                 if (isset($canSellTransactions[$transaction['amfi_code']])) {
-                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] += $transaction['available_units'];
+                                    if (!isset($canSellTransactions[$transaction['amfi_code']]['available_units'])) {
+                                        $canSellTransactions[$transaction['amfi_code']]['available_units'] = $transaction['available_units'];
+                                    } else {
+                                        $canSellTransactions[$transaction['amfi_code']]['available_units'] += $transaction['available_units'];
+                                    }
                                 } else {
                                     $canSellTransactions[$transaction['amfi_code']] = $transaction;
                                 }
