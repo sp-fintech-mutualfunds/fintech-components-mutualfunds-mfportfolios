@@ -61,6 +61,7 @@ class PortfoliosComponent extends BaseComponent
 
             $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
+            $this->view->mode = 'edit';
             if ($this->getData()['id'] != 0) {
                 $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
@@ -68,7 +69,6 @@ class PortfoliosComponent extends BaseComponent
                     return $this->throwIdNotFound();
                 }
 
-                $this->view->mode = 'edit';
                 if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
                     $this->view->mode = 'timeline';
 
