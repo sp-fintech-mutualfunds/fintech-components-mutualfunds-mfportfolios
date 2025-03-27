@@ -73,13 +73,17 @@ class PortfoliosComponent extends BaseComponent
                     $this->view->mode = 'timeline';
 
                     // if ($portfolio['recalculate_timeline']) {
-                        $this->mfTransactionsPackage->recalculatePortfolioTransactions(
+                        $portfolioWithTimeline = $this->mfTransactionsPackage->recalculatePortfolioTransactions(
                             [
-                                'portfolio_id' => $this->getData()['id'],
-                                'timelinemode' => true
+                                'portfolio_id'  => $this->getData()['id'],
+                                'timeline'      => true
                             ]
                         );
                     // }
+                    //
+                    if (isset($portfolioWithTimeline)) {
+                        $portfolio = $portfolioWithTimeline;
+                    }
                 }
 
                 if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
@@ -199,7 +203,7 @@ class PortfoliosComponent extends BaseComponent
                 }
 
                 if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
-                    $portfolio['transactions'] = msort($portfolio['transactions'], 'date');
+                    $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
                     $portfolio['transactions'] = array_reverse($portfolio['transactions']);
                 }
 
