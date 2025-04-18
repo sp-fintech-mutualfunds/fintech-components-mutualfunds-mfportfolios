@@ -110,7 +110,6 @@ class PortfoliosComponent extends BaseComponent
 
                         if ($scheme && isset($scheme[0])) {
                             $transaction['scheme'] = $scheme[0];
-                            $scheme = $schemesPackage->getSchemeById($transaction['scheme']['id']);
 
                             if ($transaction['type'] === 'buy' && $transaction['status'] === 'open') {
                                 $transaction['available_units'] = $transaction['units_bought'];
@@ -149,14 +148,14 @@ class PortfoliosComponent extends BaseComponent
                                 continue;
                             }
 
-                            $canSellTransactions[$transaction['amfi_code']]['available_units'] = round($canSellTransactions[$transaction['amfi_code']]['available_units'], 3);
+                            $canSellTransactions[$transaction['amfi_code']]['available_units'] = numberFormatPrecision($canSellTransactions[$transaction['amfi_code']]['available_units'], 3);
 
                             $canSellTransactions[$transaction['amfi_code']]['available_amount'] =
                                 str_replace('EN_ ',
                                             '',
                                             (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
                                                 ->formatCurrency(
-                                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] * $scheme['navs']['latest_nav'],
+                                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] * $schemesPackage->getSchemeLatestNav($transaction['scheme']['id']),
                                                     'en_IN'
                                                 )
                                 );
