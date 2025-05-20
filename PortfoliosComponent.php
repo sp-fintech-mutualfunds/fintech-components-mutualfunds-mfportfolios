@@ -80,14 +80,13 @@ class PortfoliosComponent extends BaseComponent
 
                 // if ($this->view->mode === 'timeline') {
                 // if ($portfolio['recalculate_timeline']) {
-                    // $portfolioWithTimeline = $this->mfTransactionsPackage->recalculatePortfolio(
+                    // $this->mfTransactionsPackage->recalculatePortfolio(
                     //     [
-                    //         'portfolio_id'  => $this->getData()['id'],
-                    //         'timeline'      => true
+                    //         'portfolio_id'  => $this->getData()['id']
                     //     ]
                     // );
                 // }
-
+                    // trace([$portfolio['transactions']]);
                 // if (isset($portfolioWithTimeline)) {
                 //     $portfolio = $portfolioWithTimeline;
                 // }
@@ -128,9 +127,9 @@ class PortfoliosComponent extends BaseComponent
                         foreach ($portfolio['transactions'] as $transactionId => $transaction) {
                             $scheme = $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
 
-                            $portfolio['transactions'][$transaction['id']] = $transaction;
-                            $portfolio['transactions'][$transaction['id']]['scheme'] = $scheme;
-                            unset($portfolio['transactions'][$transactionId]);
+                            // $portfolio['transactions'][$transaction['id']] = $transaction;
+                            $portfolio['transactions'][$transactionId]['scheme'] = $scheme;
+                            // unset($portfolio['transactions'][$transactionId]);
                         //     if ($this->config->databasetype === 'db') {
                         //         $conditions =
                         //             [
@@ -230,6 +229,20 @@ class PortfoliosComponent extends BaseComponent
                                     ->formatCurrency($portfolio['invested_amount'], 'en_IN')
                     );
 
+                $portfolio['return_amount'] =
+                    str_replace('EN_ ',
+                                '',
+                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                    ->formatCurrency($portfolio['return_amount'], 'en_IN')
+                    );
+
+                $portfolio['sold_amount'] =
+                    str_replace('EN_ ',
+                                '',
+                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                    ->formatCurrency($portfolio['sold_amount'], 'en_IN')
+                    );
+
                 $portfolio['total_value'] =
                     str_replace('EN_ ',
                                 '',
@@ -247,7 +260,7 @@ class PortfoliosComponent extends BaseComponent
                 if (!$portfolio['xirr']) {
                     $portfolio['xirr'] = 0;
                 }
-
+                // trace([$portfolio]);
                 $this->view->portfolio = $portfolio;
             }
 
