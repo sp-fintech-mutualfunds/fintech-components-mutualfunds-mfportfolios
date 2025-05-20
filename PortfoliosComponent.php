@@ -57,11 +57,20 @@ class PortfoliosComponent extends BaseComponent
 
             $this->view->users = $users;
 
-            $canSellTransactions = [];
+            // $canSellTransactions = [];
 
             $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
-            $this->view->mode = 'edit';
+            if (!isset($this->getData()['mode']) && $this->getData()['id'] != 0) {
+                $this->view->mode = 'view';
+            } else if ((isset($this->getData()['mode']) && $this->getData()['mode'] === 'edit') ||
+                       $this->getData()['id'] == 0
+            ) {
+                $this->view->mode = 'edit';
+            } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
+                $this->view->mode = 'timeline';
+            }
+
             if ($this->getData()['id'] != 0) {
                 $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
@@ -69,110 +78,148 @@ class PortfoliosComponent extends BaseComponent
                     return $this->throwIdNotFound();
                 }
 
-                if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
-                    $this->view->mode = 'timeline';
+                // if ($this->view->mode === 'timeline') {
+                // if ($portfolio['recalculate_timeline']) {
+                    // $portfolioWithTimeline = $this->mfTransactionsPackage->recalculatePortfolio(
+                    //     [
+                    //         'portfolio_id'  => $this->getData()['id'],
+                    //         'timeline'      => true
+                    //     ]
+                    // );
+                // }
 
-                    // if ($portfolio['recalculate_timeline']) {
-                        $portfolioWithTimeline = $this->mfTransactionsPackage->recalculatePortfolioTransactions(
-                            [
-                                'portfolio_id'  => $this->getData()['id'],
-                                'timeline'      => true
-                            ]
-                        );
-                    // }
-                    //
-                    if (isset($portfolioWithTimeline)) {
-                        $portfolio = $portfolioWithTimeline;
-                    }
-                }
+                // if (isset($portfolioWithTimeline)) {
+                //     $portfolio = $portfolioWithTimeline;
+                // }
+                // }
 
-                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                // $schemes = [];
+
+                if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
                     $schemesPackage = $this->usepackage(MfSchemes::class);
 
-                    foreach ($portfolio['transactions'] as &$transaction) {
-                        if ($this->config->databasetype === 'db') {
-                            $conditions =
-                                [
-                                    'conditions'    => 'amfi_code = :amfi_code:',
-                                    'bind'          =>
-                                        [
-                                            'amfi_code'       => (int) $transaction['amfi_code'],
-                                        ]
-                                ];
-                        } else {
-                            $conditions =
-                                [
-                                    'conditions'    => ['amfi_code', '=', (int) $transaction['amfi_code']]
-                                ];
-                        }
+                    foreach ($portfolio['investments'] as $amfiCode => &$investment) {
+                        $scheme = $schemesPackage->getMfTypeByAmfiCode($amfiCode);
+                        $portfolio['investments'][$amfiCode]['scheme'] = $scheme;
 
-                        $scheme = $schemesPackage->getByParams($conditions);
-
-                        if ($scheme && isset($scheme[0])) {
-                            $transaction['scheme'] = $scheme[0];
-
-                            if ($transaction['type'] === 'buy' && $transaction['status'] === 'open') {
-                                $transaction['available_units'] = $transaction['units_bought'];
-
-                                if ($transaction['units_sold'] > 0) {
-                                    $transaction['available_units'] = $transaction['units_bought'] - $transaction['units_sold'];
-                                }
-
-                                if (isset($canSellTransactions[$transaction['amfi_code']])) {
-                                    if (!isset($canSellTransactions[$transaction['amfi_code']]['available_units'])) {
-                                        $canSellTransactions[$transaction['amfi_code']]['available_units'] = $transaction['available_units'];
-                                    } else {
-                                        $canSellTransactions[$transaction['amfi_code']]['available_units'] += $transaction['available_units'];
-                                    }
-                                } else {
-                                    $canSellTransactions[$transaction['amfi_code']] = $transaction;
-                                }
-                            } else {
-                                if (!isset($canSellTransactions[$transaction['amfi_code']])) {
-                                    $canSellTransactions[$transaction['amfi_code']] = $transaction;
-                                }
-
-                                $transaction['amount'] =
-                                    str_replace('EN_ ',
-                                                '',
-                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                    ->formatCurrency($transaction['amount'], 'en_IN')
-                                    );
-                                $transaction['latest_value'] =
-                                    str_replace('EN_ ',
-                                                '',
-                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                    ->formatCurrency($transaction['latest_value'], 'en_IN')
-                                    );
-
-                                continue;
-                            }
-
-                            $canSellTransactions[$transaction['amfi_code']]['available_units'] = numberFormatPrecision($canSellTransactions[$transaction['amfi_code']]['available_units'], 3);
-
-                            $canSellTransactions[$transaction['amfi_code']]['available_amount'] =
-                                str_replace('EN_ ',
-                                            '',
-                                            (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                ->formatCurrency(
-                                                    $canSellTransactions[$transaction['amfi_code']]['available_units'] * $schemesPackage->getSchemeLatestNav($transaction['scheme']['id']),
-                                                    'en_IN'
-                                                )
-                                );
-                        }
-
-                        $transaction['amount'] =
+                        $investment['amount'] =
                             str_replace('EN_ ',
                                         '',
                                         (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                            ->formatCurrency($transaction['amount'], 'en_IN')
+                                            ->formatCurrency($investment['amount'], 'en_IN')
                             );
-                        $transaction['latest_value'] =
+                        $investment['latest_value'] =
                             str_replace('EN_ ',
                                         '',
                                         (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                            ->formatCurrency($transaction['latest_value'], 'en_IN')
+                                            ->formatCurrency($investment['latest_value'], 'en_IN')
                             );
+
+                        $investment['diff'] =
+                            str_replace('EN_ ',
+                                        '',
+                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                            ->formatCurrency($investment['diff'], 'en_IN')
+                            );
+                    }
+
+
+                    if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                        foreach ($portfolio['transactions'] as $transactionId => $transaction) {
+                            $scheme = $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
+
+                            $portfolio['transactions'][$transaction['id']] = $transaction;
+                            $portfolio['transactions'][$transaction['id']]['scheme'] = $scheme;
+                            unset($portfolio['transactions'][$transactionId]);
+                        //     if ($this->config->databasetype === 'db') {
+                        //         $conditions =
+                        //             [
+                        //                 'conditions'    => 'amfi_code = :amfi_code:',
+                        //                 'bind'          =>
+                        //                     [
+                        //                         'amfi_code'       => (int) $transaction['amfi_code'],
+                        //                     ]
+                        //             ];
+                        //     } else {
+                        //         $conditions =
+                        //             [
+                        //                 'conditions'    => ['amfi_code', '=', (int) $transaction['amfi_code']]
+                        //             ];
+                        //     }
+
+                        //     $scheme = $schemesPackage->getByParams($conditions);
+
+                        //     if ($scheme && isset($scheme[0])) {
+                        //         $transaction['scheme'] = $scheme[0];
+
+                        //         //Use with investments
+                        //         $schemes[$transaction['amfi_code']] = $transaction['scheme']['name'];
+
+                        //         if ($transaction['type'] === 'buy' && $transaction['status'] === 'open') {
+                        //             $transaction['available_units'] = $transaction['units_bought'];
+
+                        //             if ($transaction['units_sold'] > 0) {
+                        //                 $transaction['available_units'] = $transaction['units_bought'] - $transaction['units_sold'];
+                        //             }
+
+                        //             if (isset($canSellTransactions[$transaction['amfi_code']])) {
+                        //                 if (!isset($canSellTransactions[$transaction['amfi_code']]['available_units'])) {
+                        //                     $canSellTransactions[$transaction['amfi_code']]['available_units'] = $transaction['available_units'];
+                        //                 } else {
+                        //                     $canSellTransactions[$transaction['amfi_code']]['available_units'] += $transaction['available_units'];
+                        //                 }
+                        //             } else {
+                        //                 $canSellTransactions[$transaction['amfi_code']] = $transaction;
+                        //             }
+                        //         } else {
+                        //             if (!isset($canSellTransactions[$transaction['amfi_code']])) {
+                        //                 $canSellTransactions[$transaction['amfi_code']] = $transaction;
+                        //             }
+
+                        //             $transaction['amount'] =
+                        //                 str_replace('EN_ ',
+                        //                             '',
+                        //                             (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                        //                                 ->formatCurrency($transaction['amount'], 'en_IN')
+                        //                 );
+                        //             $transaction['latest_value'] =
+                        //                 str_replace('EN_ ',
+                        //                             '',
+                        //                             (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                        //                                 ->formatCurrency($transaction['latest_value'], 'en_IN')
+                        //                 );
+
+                        //             continue;
+                        //         }
+
+                        //         $canSellTransactions[$transaction['amfi_code']]['available_units'] = numberFormatPrecision($canSellTransactions[$transaction['amfi_code']]['available_units'], 3);
+
+                        //         $canSellTransactions[$transaction['amfi_code']]['available_amount'] =
+                        //             str_replace('EN_ ',
+                        //                         '',
+                        //                         (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                        //                             ->formatCurrency(
+                        //                                 $canSellTransactions[$transaction['amfi_code']]['available_units'] * $schemesPackage->getSchemeLatestNav($transaction['scheme']['id']),
+                        //                                 'en_IN'
+                        //                             )
+                        //             );
+                        //     }
+
+                        //     $transaction['amount'] =
+                        //         str_replace('EN_ ',
+                        //                     '',
+                        //                     (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                        //                         ->formatCurrency($transaction['amount'], 'en_IN')
+                        //         );
+                        //     $transaction['latest_value'] =
+                        //         str_replace('EN_ ',
+                        //                     '',
+                        //                     (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                        //                         ->formatCurrency($transaction['latest_value'], 'en_IN')
+                        //         );
+                        }
+                        $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
+                        $portfolio['transactions'] = array_reverse($portfolio['transactions'], true);
                     }
                 }
 
@@ -201,15 +248,10 @@ class PortfoliosComponent extends BaseComponent
                     $portfolio['xirr'] = 0;
                 }
 
-                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
-                    $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
-                    $portfolio['transactions'] = array_reverse($portfolio['transactions']);
-                }
-
                 $this->view->portfolio = $portfolio;
             }
 
-            $this->view->canSellTransactions = $canSellTransactions;
+            // $this->view->canSellTransactions = $canSellTransactions;
 
             $this->view->pick('portfolios/view');
 
@@ -223,11 +265,12 @@ class PortfoliosComponent extends BaseComponent
 
         $controlActions =
             [
-                // 'disableActionsForIds'  => [1],
+                'includeQ'              => true,
                 'actionsToEnable'       =>
                 [
-                    'edit'      => 'mf/portfolios',
-                    'remove'    => 'mf/portfolios/remove'
+                    'view'      => 'mf/portfolios/q/',
+                    'edit'      => 'mf/portfolios/q/mode/edit',
+                    'remove'    => 'mf/portfolios/remove/q/'
                 ]
             ];
 
@@ -369,11 +412,11 @@ class PortfoliosComponent extends BaseComponent
         );
     }
 
-    public function recalculatePortfolioTransactionsAction()
+    public function recalculatePortfolioAction()
     {
         $this->requestIsPost();
 
-        $this->mfTransactionsPackage->recalculatePortfolioTransactions($this->postData());
+        $this->mfTransactionsPackage->recalculatePortfolio($this->postData());
 
         $this->addResponse(
             $this->mfTransactionsPackage->packagesData->responseMessage,

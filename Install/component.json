@@ -40,6 +40,12 @@
 				"name" : "MfTransactions",
 				"version" : "0.4.0",
 				"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mftransactions"
+			},
+			
+			{
+				"name" : "MfInvestments",
+				"version" : "0.0.0",
+				"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mfinvestments"
 			}
 		],
 		"middlewares" : [],
