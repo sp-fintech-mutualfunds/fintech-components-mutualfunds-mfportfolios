@@ -46,6 +46,12 @@
 				"name" : "MfInvestments",
 				"version" : "0.0.0",
 				"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mfinvestments"
+			},
+			
+			{
+				"name" : "MfPortfoliostimeline",
+				"version" : "0.0.0",
+				"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mfportfoliostimeline"
 			}
 		],
 		"middlewares" : [],
