@@ -7,6 +7,7 @@ use Apps\Fintech\Packages\Accounts\Users\AccountsUsers;
 use Apps\Fintech\Packages\Adminltetags\Traits\DynamicTable;
 use Apps\Fintech\Packages\Mf\Amcs\MfAmcs;
 use Apps\Fintech\Packages\Mf\Portfolios\MfPortfolios;
+use Apps\Fintech\Packages\Mf\Portfoliostimeline\MfPortfoliostimeline;
 use Apps\Fintech\Packages\Mf\Schemes\MfSchemes;
 use Apps\Fintech\Packages\Mf\Transactions\MfTransactions;
 use System\Base\BaseComponent;
@@ -23,9 +24,15 @@ class PortfoliosComponent extends BaseComponent
 
     protected $accountsUsersPackage;
 
+    protected $today;
+
     public function initialize()
     {
+        $this->today = (\Carbon\Carbon::now(new \DateTimeZone('Asia/Kolkata')))->toDateString();
+
         $this->mfPortfoliosPackage = $this->usePackage(MfPortfolios::class);
+
+        $this->mfPortfoliostimelinePackage = $this->usePackage(MfPortfoliostimeline::class);
 
         $this->mfAmcsPackage = $this->usePackage(MfAmcs::class);
 
@@ -52,6 +59,8 @@ class PortfoliosComponent extends BaseComponent
             if (isset($this->getData()['clone'])) {
                 $this->mfPortfoliosPackage->clonePortfolio(['id' => $this->getData()['id']]);
             } else {
+                $this->view->today = $this->today;
+
                 $users = $this->accountsUsersPackage->getAccountsUserByAccountId($this->access->auth->account()['id']);
 
                 if (!$users) {
@@ -63,17 +72,53 @@ class PortfoliosComponent extends BaseComponent
                 $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
                 if (!isset($this->getData()['mode']) && $this->getData()['id'] != 0) {
-                    $this->view->mode = 'view';
+                    $this->view->mode = 'transact';
                 } else if ((isset($this->getData()['mode']) && $this->getData()['mode'] === 'edit') ||
                            $this->getData()['id'] == 0
                 ) {
                     $this->view->mode = 'edit';
-                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline') {
+                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'transact' && $this->getData()['id'] != 0) {
+                    $this->view->mode = 'transact';
+                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline' && $this->getData()['id'] != 0) {
                     $this->view->mode = 'timeline';
                 }
 
                 if ($this->getData()['id'] != 0) {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+
+                    if ($this->view->mode === 'timeline') {
+                        if ($portfolio && count($portfolio['investments']) > 0) {
+                            $getTimelineDate = $portfolio['start_date'];
+
+                            if (isset($this->getData()['date'])) {
+                                try {
+                                    $getTimelineDate = (\Carbon\Carbon::parse($this->getData()['date']))->toDateString();
+                                } catch (\throwable $e) {
+                                    return $this->throwIdNotFound();
+                                }
+
+                                // $requestedDate = (\Carbon\Carbon::parse($getTimelineDate));
+                                // trace([$requestedDate]);
+                            }
+
+                            $mainPortfolio = $portfolio;
+
+                            $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
+
+                            $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
+                            $this->view->timelineBrowse = 'day';
+
+                            if (isset($this->getData()['browse'])) {
+                                $browseKeys = array_keys($this->view->timelineBorwserOptions);
+
+                                if (in_array(strtolower($this->getData()['browse']), $browseKeys)) {
+                                    $this->view->timelineBrowse = strtolower($this->getData()['browse']);
+                                }
+                            }
+                        } else {
+                            return $this->throwIdNotFound();
+                        }
+                    }
 
                     if (!$portfolio) {
                         return $this->throwIdNotFound();
@@ -174,10 +219,23 @@ class PortfoliosComponent extends BaseComponent
                 'includeQ'              => true,
                 'actionsToEnable'       =>
                 [
-                    'view'      => 'mf/portfolios/q/',
+                    'view'      => [
+                        'title' => 'transact',
+                        'icon'  => 'exchange-alt',
+                        'type'  => 'primary',
+                        'link'  => 'mf/portfolios/q/mode/transact'
+                    ],
                     'edit'      => 'mf/portfolios/q/mode/edit',
                     'clone'     => 'mf/portfolios/q/',
-                    'remove'    => 'mf/portfolios/remove/q/'
+                    'remove'    => 'mf/portfolios/remove/q/',
+                    'divider'   => '',
+                    'timeline'  => [
+                        'title'             => 'Timeline',
+                        'icon'              => 'timeline',
+                        'buttonType'        => 'info',
+                        'additionalClass'   => 'timelineMode contentAjaxLink',
+                        'link'              => 'mf/portfolios/q/mode/timeline'
+                    ]
                 ]
             ];
 
@@ -193,12 +251,36 @@ class PortfoliosComponent extends BaseComponent
                                     $key === 'total_value'
                                 ) {
                                     if ($value) {
-                                        $data[$key] =
-                                            str_replace('EN_ ',
-                                                    '',
-                                                    (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                        ->formatCurrency($value, 'en_IN')
-                                        );
+                                        if ($key === 'total_value') {
+                                            if (is_string($data['invested_amount'])) {
+                                                $investedAmount = (float) str_replace(',', '', $data['invested_amount']);
+                                            } else {
+                                                $investedAmount = $data['invested_amount'];
+                                            }
+
+                                            if ($value > $data['invested_amount']) {
+                                                $color = 'success';
+                                            } else if ($value < $data['invested_amount']) {
+                                                $color = 'danger';
+                                            } else if ($value === $data['invested_amount']) {
+                                                $color = 'primary';
+                                            }
+
+                                            $data[$key] = '<span class="text-' . $color . '">' .
+                                                str_replace('EN_ ',
+                                                        '',
+                                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                            ->formatCurrency($value, 'en_IN')
+                                                ) .
+                                                '</span>';
+                                        } else {
+                                            $data[$key] =
+                                                str_replace('EN_ ',
+                                                        '',
+                                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                            ->formatCurrency($value, 'en_IN')
+                                            );
+                                        }
                                     }
                                 }
                             });
@@ -286,12 +368,55 @@ class PortfoliosComponent extends BaseComponent
     {
         $this->requestIsPost();
 
-        $this->mfPortfoliosPackage->recalculatePortfolio($this->postData());
+        if (isset($this->postData()['timelineDate'])) {
+            $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id']);
 
-        $this->addResponse(
-            $this->mfPortfoliosPackage->packagesData->responseMessage,
-            $this->mfPortfoliosPackage->packagesData->responseCode,
-            $this->mfPortfoliosPackage->packagesData->responseData ?? []
-        );
+            if ($portfolio) {
+                $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline(
+                    $portfolio,
+                    $this->postData()['timelineDate'],
+                    true
+                );
+
+                $this->addResponse(
+                    $this->mfPortfoliostimelinePackage->packagesData->responseMessage,
+                    $this->mfPortfoliostimelinePackage->packagesData->responseCode,
+                    $this->mfPortfoliostimelinePackage->packagesData->responseData ?? []
+                );
+
+                return true;
+            }
+
+            return $this->throwIdNotFound();
+        } else {
+            $this->mfPortfoliosPackage->recalculatePortfolio($this->postData());
+
+            $this->addResponse(
+                $this->mfPortfoliosPackage->packagesData->responseMessage,
+                $this->mfPortfoliosPackage->packagesData->responseCode,
+                $this->mfPortfoliosPackage->packagesData->responseData ?? []
+            );
+        }
+    }
+
+    public function getPortfolioTimelineDateByBrowseActionAction()
+    {
+        $this->requestIsPost();
+
+        $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id']);
+
+        if ($portfolio) {
+            $this->mfPortfoliostimelinePackage->getPortfolioTimelineDateByBrowseAction($portfolio, $this->postData());
+
+            $this->addResponse(
+                $this->mfPortfoliostimelinePackage->packagesData->responseMessage,
+                $this->mfPortfoliostimelinePackage->packagesData->responseCode,
+                $this->mfPortfoliostimelinePackage->packagesData->responseData ?? []
+            );
+
+            return true;
+        }
+
+        return $this->throwIdNotFound();
     }
 }
