@@ -88,35 +88,40 @@ class PortfoliosComponent extends BaseComponent
 
                     if ($this->view->mode === 'timeline') {
                         if ($portfolio && count($portfolio['investments']) > 0) {
-                            $getTimelineDate = $portfolio['start_date'];
+                            if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
+                                $this->view->pick('portfolios/view');
 
-                            if (isset($this->getData()['date'])) {
-                                try {
-                                    $getTimelineDate = (\Carbon\Carbon::parse($this->getData()['date']))->toDateString();
-                                } catch (\throwable $e) {
-                                    return $this->throwIdNotFound();
+                                $this->view->portfolio = $portfolio;
+
+                                $this->view->timelineNeedsGeneration = true;
+
+                                return;
+                            } else {
+                                $getTimelineDate = $portfolio['start_date'];
+
+                                if (isset($this->getData()['date'])) {
+                                    try {
+                                        $getTimelineDate = (\Carbon\Carbon::parse($this->getData()['date']))->toDateString();
+                                    } catch (\throwable $e) {
+                                        return $this->throwIdNotFound();
+                                    }
                                 }
 
-                                // $requestedDate = (\Carbon\Carbon::parse($getTimelineDate));
-                                // trace([$requestedDate]);
-                            }
+                                $mainPortfolio = $portfolio;
 
-                            $mainPortfolio = $portfolio;
+                                $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
 
-                            $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
+                                $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
+                                $this->view->timelineBrowse = 'day';
 
-                            $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
-                            $this->view->timelineBrowse = 'day';
+                                if (isset($this->getData()['browse'])) {
+                                    $browseKeys = array_keys($this->view->timelineBorwserOptions);
 
-                            if (isset($this->getData()['browse'])) {
-                                $browseKeys = array_keys($this->view->timelineBorwserOptions);
-
-                                if (in_array(strtolower($this->getData()['browse']), $browseKeys)) {
-                                    $this->view->timelineBrowse = strtolower($this->getData()['browse']);
+                                    if (in_array(strtolower($this->getData()['browse']), $browseKeys)) {
+                                        $this->view->timelineBrowse = strtolower($this->getData()['browse']);
+                                    }
                                 }
                             }
-                        } else {
-                            return $this->throwIdNotFound();
                         }
                     }
 
@@ -418,5 +423,22 @@ class PortfoliosComponent extends BaseComponent
         }
 
         return $this->throwIdNotFound();
+    }
+
+    public function procsessTimelineNeedsGenerationAction()
+    {
+        try {
+            $this->requestIsPost();
+
+            $this->mfPortfoliostimelinePackage->processTimelineNeedsGeneration($this->postData());
+
+            $this->addResponse(
+                $this->mfPortfoliostimelinePackage->packagesData->responseMessage,
+                $this->mfPortfoliostimelinePackage->packagesData->responseCode,
+                $this->mfPortfoliostimelinePackage->packagesData->responseData ?? []
+            );
+        } catch (\Exception $e) {
+            $this->addResponse($e->getMessage(), 1);
+        }
     }
 }
