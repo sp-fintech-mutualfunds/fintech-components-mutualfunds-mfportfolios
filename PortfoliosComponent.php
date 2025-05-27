@@ -9,6 +9,7 @@ use Apps\Fintech\Packages\Mf\Amcs\MfAmcs;
 use Apps\Fintech\Packages\Mf\Portfolios\MfPortfolios;
 use Apps\Fintech\Packages\Mf\Portfoliostimeline\MfPortfoliostimeline;
 use Apps\Fintech\Packages\Mf\Schemes\MfSchemes;
+use Apps\Fintech\Packages\Mf\Strategies\MfStrategies;
 use Apps\Fintech\Packages\Mf\Transactions\MfTransactions;
 use System\Base\BaseComponent;
 
@@ -17,6 +18,10 @@ class PortfoliosComponent extends BaseComponent
     use DynamicTable;
 
     protected $mfPortfoliosPackage;
+
+    protected $mfPortfoliostimelinePackage;
+
+    protected $mfStrategiesPackage;
 
     protected $mfAmcsPackage;
 
@@ -33,6 +38,8 @@ class PortfoliosComponent extends BaseComponent
         $this->mfPortfoliosPackage = $this->usePackage(MfPortfolios::class);
 
         $this->mfPortfoliostimelinePackage = $this->usePackage(MfPortfoliostimeline::class);
+
+        $this->mfStrategiesPackage = $this->usePackage(MfStrategies::class);
 
         $this->mfAmcsPackage = $this->usePackage(MfAmcs::class);
 
@@ -79,6 +86,8 @@ class PortfoliosComponent extends BaseComponent
                     $this->view->mode = 'edit';
                 } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'transact' && $this->getData()['id'] != 0) {
                     $this->view->mode = 'transact';
+                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'strategies' && $this->getData()['id'] != 0) {
+                    $this->view->mode = 'strategies';
                 } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline' && $this->getData()['id'] != 0) {
                     $this->view->mode = 'timeline';
                 }
@@ -86,8 +95,53 @@ class PortfoliosComponent extends BaseComponent
                 if ($this->getData()['id'] != 0) {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
+                    $this->view->strategies = [];
+                    $this->view->strategiesArgs = [];
+                    if ($this->view->mode === 'strategies') {
+                        $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
+                        $strategiesArr = msort($strategiesArr, 'name');
+
+                        $strategies = [];
+
+                        if ($strategiesArr && count($strategiesArr) > 0) {
+                            foreach ($strategiesArr as $thisStrategy) {
+                                if (!$thisStrategy['class']) {
+                                    continue;
+                                }
+
+                                if (!isset($strategies[$thisStrategy['id']])) {
+                                    $strategies[$thisStrategy['id']] = [];
+                                }
+
+                                $strategies[$thisStrategy['id']]['id'] = $thisStrategy['id'];
+                                $strategies[$thisStrategy['id']]['name'] = $thisStrategy['name'];
+                                $strategies[$thisStrategy['id']]['display_name'] = $thisStrategy['display_name'];
+                                $strategies[$thisStrategy['id']]['description'] = $thisStrategy['description'];
+                                $strategies[$thisStrategy['id']]['args'] = $thisStrategy['args'];
+                            }
+                        }
+
+                        $this->view->selectedStrategy = '';
+                        $this->view->strategy = '';
+                        if (isset($this->getData()['strategy'])) {
+                            $this->view->selectedStrategy = $strategies[$this->getData()['strategy']]['id'];
+                            $this->view->strategy = strtolower($strategies[$this->getData()['strategy']]['name']);
+                            $this->view->strategyArgs = $strategies[$this->getData()['strategy']]['args'];
+                            $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
+                            $this->view->months = $this->basepackages->workers->schedules->getMonths();
+                        }
+
+                        $this->view->strategies = $strategies;
+
+                        $this->view->portfolio = $portfolio;
+
+                        $this->view->pick('portfolios/view');
+
+                        return;
+                    }
+
                     if ($this->view->mode === 'timeline') {
-                        if ($portfolio && count($portfolio['investments']) > 0) {
+                        if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
                             if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
                                 $this->view->pick('portfolios/view');
 
@@ -122,6 +176,8 @@ class PortfoliosComponent extends BaseComponent
                                     }
                                 }
                             }
+                        } else {
+                            $this->view->mode = 'transact';
                         }
                     }
 
@@ -240,6 +296,13 @@ class PortfoliosComponent extends BaseComponent
                         'buttonType'        => 'info',
                         'additionalClass'   => 'timelineMode contentAjaxLink',
                         'link'              => 'mf/portfolios/q/mode/timeline'
+                    ],
+                    'strategies'  => [
+                        'title'             => 'Strategies',
+                        'icon'              => 'shuffle',
+                        'buttonType'        => 'warning',
+                        'additionalClass'   => 'strategiesMode contentAjaxLink',
+                        'link'              => 'mf/portfolios/q/mode/strategies'
                     ]
                 ]
             ];
@@ -377,10 +440,9 @@ class PortfoliosComponent extends BaseComponent
             $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id']);
 
             if ($portfolio) {
-                $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline(
+                $this->mfPortfoliostimelinePackage->forceRecalculateTimeline(
                     $portfolio,
                     $this->postData()['timelineDate'],
-                    true
                 );
 
                 $this->addResponse(
@@ -436,6 +498,40 @@ class PortfoliosComponent extends BaseComponent
                 $this->mfPortfoliostimelinePackage->packagesData->responseMessage,
                 $this->mfPortfoliostimelinePackage->packagesData->responseCode,
                 $this->mfPortfoliostimelinePackage->packagesData->responseData ?? []
+            );
+        } catch (\Exception $e) {
+            $this->addResponse($e->getMessage(), 1);
+        }
+    }
+
+    public function getStrategiesTransactionsAction()
+    {
+        try {
+            $this->requestIsPost();
+
+            $this->mfStrategiesPackage->getStrategiesTransactions($this->postData());
+
+            $this->addResponse(
+                $this->mfStrategiesPackage->packagesData->responseMessage,
+                $this->mfStrategiesPackage->packagesData->responseCode,
+                $this->mfStrategiesPackage->packagesData->responseData ?? []
+            );
+        } catch (\Exception $e) {
+            $this->addResponse($e->getMessage(), 1);
+        }
+    }
+
+    public function applyStrategyAction()
+    {
+        try {
+            $this->requestIsPost();
+
+            $this->mfStrategiesPackage->applyStrategy($this->postData());
+
+            $this->addResponse(
+                $this->mfStrategiesPackage->packagesData->responseMessage,
+                $this->mfStrategiesPackage->packagesData->responseCode,
+                $this->mfStrategiesPackage->packagesData->responseData ?? []
             );
         } catch (\Exception $e) {
             $this->addResponse($e->getMessage(), 1);
