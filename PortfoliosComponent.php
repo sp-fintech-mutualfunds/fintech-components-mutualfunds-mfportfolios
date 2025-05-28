@@ -143,11 +143,14 @@ class PortfoliosComponent extends BaseComponent
                     if ($this->view->mode === 'timeline') {
                         if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
                             if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
-                                $this->view->pick('portfolios/view');
+                                $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
+                                $this->view->months = $this->basepackages->workers->schedules->getMonths();
 
+                                $this->view->timeline = $this->mfPortfoliostimelinePackage->getTimeline();
+                                $this->view->timelineNeedsGeneration = true;
                                 $this->view->portfolio = $portfolio;
 
-                                $this->view->timelineNeedsGeneration = true;
+                                $this->view->pick('portfolios/view');
 
                                 return;
                             } else {
@@ -164,6 +167,10 @@ class PortfoliosComponent extends BaseComponent
                                 $mainPortfolio = $portfolio;
 
                                 $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
+
+                                if (!$portfolio) {
+                                    return $this->throwIdNotFound();
+                                }
 
                                 $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
                                 $this->view->timelineBrowse = 'day';
