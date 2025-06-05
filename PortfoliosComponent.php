@@ -6,6 +6,7 @@ use Apps\Fintech\Packages\Accounts\Balances\AccountsBalances;
 use Apps\Fintech\Packages\Accounts\Users\AccountsUsers;
 use Apps\Fintech\Packages\Adminltetags\Traits\DynamicTable;
 use Apps\Fintech\Packages\Mf\Amcs\MfAmcs;
+use Apps\Fintech\Packages\Mf\Categories\MfCategories;
 use Apps\Fintech\Packages\Mf\Portfolios\MfPortfolios;
 use Apps\Fintech\Packages\Mf\Portfoliostimeline\MfPortfoliostimeline;
 use Apps\Fintech\Packages\Mf\Schemes\MfSchemes;
@@ -22,6 +23,8 @@ class PortfoliosComponent extends BaseComponent
     protected $mfPortfoliostimelinePackage;
 
     protected $mfStrategiesPackage;
+
+    protected $mfCategoriesPackage;
 
     protected $mfAmcsPackage;
 
@@ -40,6 +43,8 @@ class PortfoliosComponent extends BaseComponent
         $this->mfPortfoliostimelinePackage = $this->usePackage(MfPortfoliostimeline::class);
 
         $this->mfStrategiesPackage = $this->usePackage(MfStrategies::class);
+
+        $this->mfCategoriesPackage = $this->usePackage(MfCategories::class);
 
         $this->mfAmcsPackage = $this->usePackage(MfAmcs::class);
 
@@ -95,6 +100,10 @@ class PortfoliosComponent extends BaseComponent
                 if ($this->getData()['id'] != 0) {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
+                    if (!$portfolio) {
+                        return $this->throwIdNotFound();
+                    }
+
                     $this->view->strategies = [];
                     $this->view->strategiesArgs = [];
                     if ($this->view->mode === 'strategies') {
@@ -123,24 +132,37 @@ class PortfoliosComponent extends BaseComponent
 
                         $this->view->selectedStrategy = '';
                         $this->view->strategy = '';
+                        $this->view->strategyDescription = '';
+                        $this->view->clonePortfolioName = '';
+
                         if (isset($this->getData()['strategy'])) {
                             $this->view->selectedStrategy = $strategies[$this->getData()['strategy']]['id'];
                             $this->view->strategy = strtolower($strategies[$this->getData()['strategy']]['name']);
+                            $this->view->strategyDescription = $strategies[$this->getData()['strategy']]['description'];
                             $this->view->strategyArgs = $strategies[$this->getData()['strategy']]['args'];
                             $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
                             $this->view->months = $this->basepackages->workers->schedules->getMonths();
+
+                            $this->view->clonePortfolioName =
+                                $portfolio['name'] . '_clone_' . str_replace(' ', '_', (\Carbon\Carbon::now(new \DateTimeZone('Asia/Kolkata')))->toDateTimeString());
+
+                            if ($this->view->strategy === 'catperdiff') {
+                                $categories = $this->mfCategoriesPackage->getAll()->mfcategories;
+
+                                if ($categories && count($categories) > 0) {
+                                    foreach ($categories as &$category) {
+                                        if ($category['parent_id']) {
+                                            $category['name'] = $category['name'] . ' (' . $categories[$category['parent_id']]['name'] . ')';
+                                        }
+                                    }
+                                }
+
+                                $this->view->categories = $categories;
+                            }
                         }
 
                         $this->view->strategies = $strategies;
-
-                        $this->view->portfolio = $portfolio;
-
-                        $this->view->pick('portfolios/view');
-
-                        return;
-                    }
-
-                    if ($this->view->mode === 'timeline') {
+                    } else if ($this->view->mode === 'timeline') {
                         if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
                             if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
                                 $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
@@ -164,7 +186,6 @@ class PortfoliosComponent extends BaseComponent
                                     }
                                 }
 
-                                $mainPortfolio = $portfolio;
 
                                 $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
 
@@ -186,10 +207,6 @@ class PortfoliosComponent extends BaseComponent
                         } else {
                             $this->view->mode = 'transact';
                         }
-                    }
-
-                    if (!$portfolio) {
-                        return $this->throwIdNotFound();
                     }
 
                     if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
@@ -323,21 +340,22 @@ class PortfoliosComponent extends BaseComponent
                         } else {
                             array_walk($data, function($value, $key) use (&$data) {
                                 if ($key === 'invested_amount' ||
+                                    $key === 'return_amount' ||
                                     $key === 'total_value'
                                 ) {
                                     if ($value) {
-                                        if ($key === 'total_value') {
+                                        if ($key === 'return_amount' || $key === 'total_value') {
                                             if (is_string($data['invested_amount'])) {
                                                 $investedAmount = (float) str_replace(',', '', $data['invested_amount']);
                                             } else {
                                                 $investedAmount = $data['invested_amount'];
                                             }
 
-                                            if ($value > $data['invested_amount']) {
+                                            if ($value > $investedAmount) {
                                                 $color = 'success';
-                                            } else if ($value < $data['invested_amount']) {
+                                            } else if ($value < $investedAmount) {
                                                 $color = 'danger';
-                                            } else if ($value === $data['invested_amount']) {
+                                            } else if ($value === $investedAmount) {
                                                 $color = 'primary';
                                             }
 
@@ -378,14 +396,14 @@ class PortfoliosComponent extends BaseComponent
             package: $this->mfPortfoliosPackage,
             postUrl: 'mf/portfolios/view',
             postUrlParams: $conditions,
-            columnsForTable: ['account_id', 'name', 'invested_amount', 'total_value', 'xirr'],
+            columnsForTable: ['account_id', 'name', 'invested_amount', 'return_amount', 'total_value', 'xirr'],
             withFilter : true,
-            columnsForFilter : ['name', 'invested_amount', 'total_value', 'xirr'],
+            columnsForFilter : ['name', 'invested_amount', 'return_amount', 'total_value', 'xirr'],
             controlActions : $controlActions,
             dtNotificationTextFromColumn: 'name',
             excludeColumns : ['account_id'],
             dtReplaceColumns: $replaceColumns,
-            dtReplaceColumnsTitle : ['invested_amount' => $this->view->currencySymbol . ' Invested Amount', 'total_value' => $this->view->currencySymbol . ' Total Value']
+            dtReplaceColumnsTitle : ['invested_amount' => $this->view->currencySymbol . ' Invested Amount', 'return_amount' => $this->view->currencySymbol . ' Return Amount', 'total_value' => $this->view->currencySymbol . ' Total Value']
         );
 
         $this->view->pick('portfolios/list');
