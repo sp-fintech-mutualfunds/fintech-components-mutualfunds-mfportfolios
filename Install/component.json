@@ -5,7 +5,7 @@
 	"module_type" : "components",
 	"app_type" : "fintech",
 	"category" : "mutualfunds",
-	"version" : "0.6.2",
+	"version" : "0.7.0",
 	"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-components-mutualfunds-mfportfolios",
 	"class" : "Apps\\Fintech\\Components\\Mf\\Portfolios\\PortfoliosComponent",
 	"dependencies" : 
