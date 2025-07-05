@@ -68,162 +68,183 @@ class PortfoliosComponent extends BaseComponent
         }
 
         if (isset($this->getData()['id'])) {
-            if (isset($this->getData()['clone'])) {
-                $this->mfPortfoliosPackage->clonePortfolio(['id' => $this->getData()['id']]);
-            } else {
-                $this->view->today = $this->today;
+            $this->view->today = $this->today;
 
-                $users = $this->accountsUsersPackage->getAccountsUserByAccountId($this->access->auth->account()['id']);
+            $users = $this->accountsUsersPackage->getAccountsUserByAccountId($this->access->auth->account()['id']);
 
-                if (!$users) {
-                    $users = [];
+            if (!$users) {
+                $users = [];
+            }
+
+            $this->view->users = $users;
+
+            $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
+
+            if (!isset($this->getData()['mode']) && $this->getData()['id'] != 0) {
+                $this->view->mode = 'transact';
+            } else if ((isset($this->getData()['mode']) && $this->getData()['mode'] === 'edit') ||
+                       $this->getData()['id'] == 0
+            ) {
+                $this->view->mode = 'edit';
+            } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'transact' && $this->getData()['id'] != 0) {
+                $this->view->mode = 'transact';
+            } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'strategies' && $this->getData()['id'] != 0) {
+                $this->view->mode = 'strategies';
+            } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline' && $this->getData()['id'] != 0) {
+                $this->view->mode = 'timeline';
+            }
+
+            if ($this->getData()['id'] != 0) {
+                $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+
+                if (!$portfolio) {
+                    return $this->throwIdNotFound();
                 }
 
-                $this->view->users = $users;
+                $this->view->strategies = [];
+                $this->view->strategiesArgs = [];
+                if ($this->view->mode === 'strategies') {
+                    $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
+                    $strategiesArr = msort($strategiesArr, 'name');
 
-                $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
+                    $strategies = [];
 
-                if (!isset($this->getData()['mode']) && $this->getData()['id'] != 0) {
-                    $this->view->mode = 'transact';
-                } else if ((isset($this->getData()['mode']) && $this->getData()['mode'] === 'edit') ||
-                           $this->getData()['id'] == 0
-                ) {
-                    $this->view->mode = 'edit';
-                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'transact' && $this->getData()['id'] != 0) {
-                    $this->view->mode = 'transact';
-                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'strategies' && $this->getData()['id'] != 0) {
-                    $this->view->mode = 'strategies';
-                } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'timeline' && $this->getData()['id'] != 0) {
-                    $this->view->mode = 'timeline';
-                }
+                    if ($strategiesArr && count($strategiesArr) > 0) {
+                        foreach ($strategiesArr as $thisStrategy) {
+                            if (!$thisStrategy['class']) {
+                                continue;
+                            }
 
-                if ($this->getData()['id'] != 0) {
-                    $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+                            if (!isset($strategies[$thisStrategy['id']])) {
+                                $strategies[$thisStrategy['id']] = [];
+                            }
 
-                    if (!$portfolio) {
-                        return $this->throwIdNotFound();
+                            $strategies[$thisStrategy['id']]['id'] = $thisStrategy['id'];
+                            $strategies[$thisStrategy['id']]['name'] = $thisStrategy['name'];
+                            $strategies[$thisStrategy['id']]['display_name'] = $thisStrategy['display_name'];
+                            $strategies[$thisStrategy['id']]['description'] = $thisStrategy['description'];
+                            $strategies[$thisStrategy['id']]['args'] = $thisStrategy['args'];
+                        }
                     }
 
-                    $this->view->strategies = [];
-                    $this->view->strategiesArgs = [];
-                    if ($this->view->mode === 'strategies') {
-                        $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
-                        $strategiesArr = msort($strategiesArr, 'name');
+                    $this->view->selectedStrategy = '';
+                    $this->view->strategy = '';
+                    $this->view->strategyDescription = '';
+                    $this->view->clonePortfolioName = '';
 
-                        $strategies = [];
+                    if (isset($this->getData()['strategy'])) {
+                        $this->view->selectedStrategy = $strategies[$this->getData()['strategy']]['id'];
+                        $this->view->strategy = strtolower($strategies[$this->getData()['strategy']]['name']);
+                        $this->view->strategyDescription = $strategies[$this->getData()['strategy']]['description'];
+                        $this->view->strategyArgs = $strategies[$this->getData()['strategy']]['args'];
+                        $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
+                        $this->view->months = $this->basepackages->workers->schedules->getMonths();
 
-                        if ($strategiesArr && count($strategiesArr) > 0) {
-                            foreach ($strategiesArr as $thisStrategy) {
-                                if (!$thisStrategy['class']) {
-                                    continue;
+                        $this->view->clonePortfolioName =
+                            $portfolio['name'] . '_clone_' . str_replace(' ', '_', (\Carbon\Carbon::now(new \DateTimeZone('Asia/Kolkata')))->toDateTimeString());
+
+                        if ($this->view->strategy === 'catperdiff') {
+                            $categories = $this->mfCategoriesPackage->getAll()->mfcategories;
+
+                            if ($categories && count($categories) > 0) {
+                                foreach ($categories as &$category) {
+                                    if ($category['parent_id']) {
+                                        $category['name'] = $category['name'] . ' (' . $categories[$category['parent_id']]['name'] . ')';
+                                    }
                                 }
-
-                                if (!isset($strategies[$thisStrategy['id']])) {
-                                    $strategies[$thisStrategy['id']] = [];
-                                }
-
-                                $strategies[$thisStrategy['id']]['id'] = $thisStrategy['id'];
-                                $strategies[$thisStrategy['id']]['name'] = $thisStrategy['name'];
-                                $strategies[$thisStrategy['id']]['display_name'] = $thisStrategy['display_name'];
-                                $strategies[$thisStrategy['id']]['description'] = $thisStrategy['description'];
-                                $strategies[$thisStrategy['id']]['args'] = $thisStrategy['args'];
                             }
+
+                            $this->view->categories = $categories;
                         }
+                    }
 
-                        $this->view->selectedStrategy = '';
-                        $this->view->strategy = '';
-                        $this->view->strategyDescription = '';
-                        $this->view->clonePortfolioName = '';
-
-                        if (isset($this->getData()['strategy'])) {
-                            $this->view->selectedStrategy = $strategies[$this->getData()['strategy']]['id'];
-                            $this->view->strategy = strtolower($strategies[$this->getData()['strategy']]['name']);
-                            $this->view->strategyDescription = $strategies[$this->getData()['strategy']]['description'];
-                            $this->view->strategyArgs = $strategies[$this->getData()['strategy']]['args'];
+                    $this->view->strategies = $strategies;
+                } else if ($this->view->mode === 'timeline') {
+                    if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
+                        if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
                             $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
                             $this->view->months = $this->basepackages->workers->schedules->getMonths();
 
-                            $this->view->clonePortfolioName =
-                                $portfolio['name'] . '_clone_' . str_replace(' ', '_', (\Carbon\Carbon::now(new \DateTimeZone('Asia/Kolkata')))->toDateTimeString());
+                            $this->view->timeline = $this->mfPortfoliostimelinePackage->getTimeline();
+                            $this->view->timelineNeedsGeneration = true;
+                            $this->view->portfolio = $portfolio;
 
-                            if ($this->view->strategy === 'catperdiff') {
-                                $categories = $this->mfCategoriesPackage->getAll()->mfcategories;
+                            $this->view->pick('portfolios/view');
 
-                                if ($categories && count($categories) > 0) {
-                                    foreach ($categories as &$category) {
-                                        if ($category['parent_id']) {
-                                            $category['name'] = $category['name'] . ' (' . $categories[$category['parent_id']]['name'] . ')';
-                                        }
-                                    }
-                                }
+                            return;
+                        } else {
+                            $getTimelineDate = $portfolio['start_date'];
 
-                                $this->view->categories = $categories;
-                            }
-                        }
-
-                        $this->view->strategies = $strategies;
-                    } else if ($this->view->mode === 'timeline') {
-                        if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
-                            if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
-                                $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
-                                $this->view->months = $this->basepackages->workers->schedules->getMonths();
-
-                                $this->view->timeline = $this->mfPortfoliostimelinePackage->getTimeline();
-                                $this->view->timelineNeedsGeneration = true;
-                                $this->view->portfolio = $portfolio;
-
-                                $this->view->pick('portfolios/view');
-
-                                return;
-                            } else {
-                                $getTimelineDate = $portfolio['start_date'];
-
-                                if (isset($this->getData()['date'])) {
-                                    try {
-                                        $getTimelineDate = (\Carbon\Carbon::parse($this->getData()['date']))->toDateString();
-                                    } catch (\throwable $e) {
-                                        return $this->throwIdNotFound();
-                                    }
-                                }
-
-
-                                $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
-
-                                if (!$portfolio) {
+                            if (isset($this->getData()['date'])) {
+                                try {
+                                    $getTimelineDate = (\Carbon\Carbon::parse($this->getData()['date']))->toDateString();
+                                } catch (\throwable $e) {
                                     return $this->throwIdNotFound();
                                 }
+                            }
 
-                                $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
-                                $this->view->timelineBrowse = 'day';
 
-                                if (isset($this->getData()['browse'])) {
-                                    $browseKeys = array_keys($this->view->timelineBorwserOptions);
+                            $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
 
-                                    if (in_array(strtolower($this->getData()['browse']), $browseKeys)) {
-                                        $this->view->timelineBrowse = strtolower($this->getData()['browse']);
-                                    }
+                            if (!$portfolio) {
+                                return $this->throwIdNotFound();
+                            }
+
+                            $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
+                            $this->view->timelineBrowse = 'day';
+
+                            if (isset($this->getData()['browse'])) {
+                                $browseKeys = array_keys($this->view->timelineBorwserOptions);
+
+                                if (in_array(strtolower($this->getData()['browse']), $browseKeys)) {
+                                    $this->view->timelineBrowse = strtolower($this->getData()['browse']);
                                 }
                             }
-                        } else {
-                            $this->view->mode = 'transact';
                         }
+                    } else {
+                        $this->view->mode = 'transact';
+                    }
+                }
+
+                if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
+                    $schemesPackage = $this->usepackage(MfSchemes::class);
+
+                    foreach ($portfolio['investments'] as $amfiCode => &$investment) {
+                        $scheme = $schemesPackage->getMfTypeByAmfiCode($amfiCode);
+                        $portfolio['investments'][$amfiCode]['scheme'] = $scheme;
+
+                        array_walk($investment, function($value, $key) use (&$investment) {
+                            if ($key === 'amount' ||
+                                $key === 'sold_amount' ||
+                                $key === 'latest_value' ||
+                                $key === 'diff'
+                            ) {
+                                if ($value) {
+                                    $investment[$key] =
+                                        str_replace('EN_ ',
+                                                '',
+                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                    ->formatCurrency($value, 'en_IN')
+                                    );
+                                }
+                            }
+                        });
                     }
 
-                    if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
-                        $schemesPackage = $this->usepackage(MfSchemes::class);
+                    if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                        foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
+                            $scheme = $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
 
-                        foreach ($portfolio['investments'] as $amfiCode => &$investment) {
-                            $scheme = $schemesPackage->getMfTypeByAmfiCode($amfiCode);
-                            $portfolio['investments'][$amfiCode]['scheme'] = $scheme;
+                            $portfolio['transactions'][$transactionId]['scheme'] = $scheme;
 
-                            array_walk($investment, function($value, $key) use (&$investment) {
+                            array_walk($transaction, function($value, $key) use (&$transaction) {
                                 if ($key === 'amount' ||
-                                    $key === 'sold_amount' ||
+                                    $key === 'available_amount' ||
                                     $key === 'latest_value' ||
                                     $key === 'diff'
                                 ) {
                                     if ($value) {
-                                        $investment[$key] =
+                                        $transaction[$key] =
                                             str_replace('EN_ ',
                                                     '',
                                                     (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
@@ -234,64 +255,39 @@ class PortfoliosComponent extends BaseComponent
                             });
                         }
 
-                        if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
-                            foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
-                                $scheme = $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
-
-                                $portfolio['transactions'][$transactionId]['scheme'] = $scheme;
-
-                                array_walk($transaction, function($value, $key) use (&$transaction) {
-                                    if ($key === 'amount' ||
-                                        $key === 'available_amount' ||
-                                        $key === 'latest_value' ||
-                                        $key === 'diff'
-                                    ) {
-                                        if ($value) {
-                                            $transaction[$key] =
-                                                str_replace('EN_ ',
-                                                        '',
-                                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                            ->formatCurrency($value, 'en_IN')
-                                            );
-                                        }
-                                    }
-                                });
-                            }
-
-                            $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
-                            $portfolio['transactions'] = array_reverse($portfolio['transactions'], true);
-                        }
+                        $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
+                        $portfolio['transactions'] = array_reverse($portfolio['transactions'], true);
                     }
-
-                    array_walk($portfolio, function($value, $key) use (&$portfolio) {
-                        if ($key === 'invested_amount' ||
-                            $key === 'return_amount' ||
-                            $key === 'sold_amount' ||
-                            $key === 'total_value' ||
-                            $key === 'profit_loss'
-                        ) {
-                            if ($value) {
-                                $portfolio[$key] =
-                                    str_replace('EN_ ',
-                                            '',
-                                            (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                ->formatCurrency($value, 'en_IN')
-                                );
-                            }
-                        }
-                    });
-
-                    if (!$portfolio['xirr']) {
-                        $portfolio['xirr'] = 0;
-                    }
-
-                    $this->view->portfolio = $portfolio;
                 }
 
-                $this->view->pick('portfolios/view');
+                array_walk($portfolio, function($value, $key) use (&$portfolio) {
+                    if ($key === 'invested_amount' ||
+                        $key === 'return_amount' ||
+                        $key === 'sold_amount' ||
+                        $key === 'total_value' ||
+                        $key === 'profit_loss'
+                    ) {
+                        if ($value) {
+                            $portfolio[$key] =
+                                str_replace('EN_ ',
+                                        '',
+                                        (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                            ->formatCurrency($value, 'en_IN')
+                            );
+                        }
+                    }
+                });
 
-                return;
+                if (!$portfolio['xirr']) {
+                    $portfolio['xirr'] = 0;
+                }
+
+                $this->view->portfolio = $portfolio;
             }
+
+            $this->view->pick('portfolios/view');
+
+            return;
         }
 
         $conditions =
@@ -311,9 +307,15 @@ class PortfoliosComponent extends BaseComponent
                         'link'  => 'mf/portfolios/q/mode/transact'
                     ],
                     'edit'      => 'mf/portfolios/q/mode/edit',
-                    'clone'     => 'mf/portfolios/q/',
                     'remove'    => 'mf/portfolios/remove/q/',
                     'divider'   => '',
+                    'mfClone'   =>
+                        [
+                            'title'             => 'Clone',
+                            'icon'              => 'clone',
+                            'additionalClass'   => 'clone',
+                            'link'              => 'mf/portfolios/clone/q'
+                        ],
                     'timeline'  => [
                         'title'             => 'Timeline',
                         'icon'              => 'timeline',
@@ -385,6 +387,14 @@ class PortfoliosComponent extends BaseComponent
                             } else if ($data['xirr'] === 0) {
                                 $data['xirr'] = '<span class="text-primary">' . $data['xirr'] . '</span>';
                             }
+
+                            if (!isset($data['is_clone'])) {
+                                $data['is_clone'] = 'No';
+                            }
+
+                            if ($data['is_clone'] == '1') {
+                                $data['is_clone'] = 'Yes';
+                            }
                         }
                     }
                 }
@@ -396,9 +406,9 @@ class PortfoliosComponent extends BaseComponent
             package: $this->mfPortfoliosPackage,
             postUrl: 'mf/portfolios/view',
             postUrlParams: $conditions,
-            columnsForTable: ['account_id', 'name', 'invested_amount', 'return_amount', 'total_value', 'xirr'],
+            columnsForTable: ['account_id', 'name', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
             withFilter : true,
-            columnsForFilter : ['name', 'invested_amount', 'return_amount', 'total_value', 'xirr'],
+            columnsForFilter : ['name', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
             controlActions : $controlActions,
             dtNotificationTextFromColumn: 'name',
             excludeColumns : ['account_id'],
@@ -449,6 +459,22 @@ class PortfoliosComponent extends BaseComponent
         $this->requestIsPost();
 
         $this->mfPortfoliosPackage->removePortfolio($this->postData());
+
+        $this->addResponse(
+            $this->mfPortfoliosPackage->packagesData->responseMessage,
+            $this->mfPortfoliosPackage->packagesData->responseCode,
+            $this->mfPortfoliosPackage->packagesData->responseData ?? []
+        );
+    }
+
+    /**
+     * @acl(name=remove)
+     */
+    public function cloneAction()
+    {
+        $this->requestIsPost();
+
+        $this->mfPortfoliosPackage->clonePortfolio($this->postData());
 
         $this->addResponse(
             $this->mfPortfoliosPackage->packagesData->responseMessage,
