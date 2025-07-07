@@ -2,6 +2,7 @@
 
 namespace Apps\Fintech\Components\Mf\Portfolios;
 
+use Apps\Fintech\Packages\Accounting\Books\AccountingBooks;
 use Apps\Fintech\Packages\Accounts\Balances\AccountsBalances;
 use Apps\Fintech\Packages\Accounts\Users\AccountsUsers;
 use Apps\Fintech\Packages\Adminltetags\Traits\DynamicTable;
@@ -32,6 +33,8 @@ class PortfoliosComponent extends BaseComponent
 
     protected $accountsUsersPackage;
 
+    protected $accountingBooksPackage;
+
     protected $today;
 
     public function initialize()
@@ -51,6 +54,8 @@ class PortfoliosComponent extends BaseComponent
         $this->mfTransactionsPackage = $this->usePackage(MfTransactions::class);
 
         $this->accountsUsersPackage = $this->usePackage(AccountsUsers::class);
+
+        $this->accountingBooksPackage = $this->usePackage(AccountingBooks::class);
     }
 
     /**
@@ -80,12 +85,31 @@ class PortfoliosComponent extends BaseComponent
 
             $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
+            $this->view->userBooks = [];
+
             if (!isset($this->getData()['mode']) && $this->getData()['id'] != 0) {
                 $this->view->mode = 'transact';
             } else if ((isset($this->getData()['mode']) && $this->getData()['mode'] === 'edit') ||
                        $this->getData()['id'] == 0
             ) {
                 $this->view->mode = 'edit';
+
+                if (count($users) > 0) {
+                    $userBooks = $this->accountingBooksPackage->getBooksByAccountId(['account_id' => $this->access->auth->account()['id']]);
+                    if (count($userBooks) > 0) {
+                        foreach ($userBooks as &$userBook) {
+                            if (count($userBook['accounts']) > 0) {
+                                foreach ($userBook['accounts'] as $accountKey => $account) {
+                                    if ($account['type'] !== 'bank') {
+                                        unset($userBook['accounts'][$accountKey]);
+                                    }
+                                }
+                            }
+                        }
+
+                        $this->view->userBooks = $userBooks;
+                    }
+                }
             } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'transact' && $this->getData()['id'] != 0) {
                 $this->view->mode = 'transact';
             } else if (isset($this->getData()['mode']) && $this->getData()['mode'] === 'strategies' && $this->getData()['id'] != 0) {
