@@ -413,11 +413,13 @@ class PortfoliosComponent extends BaseComponent
                             }
 
                             if (!isset($data['is_clone'])) {
-                                $data['is_clone'] = 'No';
+                                $data['is_clone'] = 'NO';
                             }
 
                             if ($data['is_clone'] == '1') {
-                                $data['is_clone'] = 'Yes';
+                                $data['is_clone'] = 'YES';
+                            } else {
+                                $data['is_clone'] = 'NO';
                             }
                         }
                     }
