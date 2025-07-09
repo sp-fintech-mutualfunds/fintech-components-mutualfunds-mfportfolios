@@ -72,16 +72,16 @@ class PortfoliosComponent extends BaseComponent
             }
         }
 
+        $users = $this->accountsUsersPackage->getAccountsUserByAccountId($this->access->auth->account()['id']);
+
+        if (!$users) {
+            $users = [];
+        }
+
+        $this->view->users = $users;
+
         if (isset($this->getData()['id'])) {
             $this->view->today = $this->today;
-
-            $users = $this->accountsUsersPackage->getAccountsUserByAccountId($this->access->auth->account()['id']);
-
-            if (!$users) {
-                $users = [];
-            }
-
-            $this->view->users = $users;
 
             $this->view->amcs = $this->mfAmcsPackage->getAll()->mfamcs;
 
@@ -96,6 +96,7 @@ class PortfoliosComponent extends BaseComponent
 
                 if (count($users) > 0) {
                     $userBooks = $this->accountingBooksPackage->getBooksByAccountId(['account_id' => $this->access->auth->account()['id']]);
+
                     if (count($userBooks) > 0) {
                         foreach ($userBooks as &$userBook) {
                             if (count($userBook['accounts']) > 0) {
@@ -358,13 +359,13 @@ class PortfoliosComponent extends BaseComponent
             ];
 
         $replaceColumns =
-            function ($dataArr) {
+            function ($dataArr) use ($users) {
                 if ($dataArr && is_array($dataArr) && count($dataArr) > 0) {
                     foreach ($dataArr as $key => &$data) {
                         if ($data['account_id'] !== $this->access->auth->account()['id']) {
                             unset($dataArr[$key]);
                         } else {
-                            array_walk($data, function($value, $key) use (&$data) {
+                            array_walk($data, function($value, $key) use (&$data, $users) {
                                 if ($key === 'invested_amount' ||
                                     $key === 'return_amount' ||
                                     $key === 'total_value'
@@ -402,6 +403,11 @@ class PortfoliosComponent extends BaseComponent
                                         }
                                     }
                                 }
+
+                                if (isset($users[$data['user_id']])) {
+                                    $data['user_id'] =
+                                        $users[$data['user_id']]['first_name'] . ' ' . $users[$data['user_id']]['last_name'] . ' (' . $data['user_id'] . ')';
+                                }
                             });
 
                             if ($data['xirr'] < 0) {
@@ -432,14 +438,14 @@ class PortfoliosComponent extends BaseComponent
             package: $this->mfPortfoliosPackage,
             postUrl: 'mf/portfolios/view',
             postUrlParams: $conditions,
-            columnsForTable: ['account_id', 'name', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
+            columnsForTable: ['account_id', 'name', 'user_id', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
             withFilter : true,
-            columnsForFilter : ['name', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
+            columnsForFilter : ['name', 'user_id', 'invested_amount', 'return_amount', 'total_value', 'xirr', 'is_clone'],
             controlActions : $controlActions,
             dtNotificationTextFromColumn: 'name',
             excludeColumns : ['account_id'],
             dtReplaceColumns: $replaceColumns,
-            dtReplaceColumnsTitle : ['invested_amount' => $this->view->currencySymbol . ' Invested Amount', 'return_amount' => $this->view->currencySymbol . ' Return Amount', 'total_value' => $this->view->currencySymbol . ' Total Value']
+            dtReplaceColumnsTitle : ['invested_amount' => $this->view->currencySymbol . ' Invested Amount', 'return_amount' => $this->view->currencySymbol . ' Return Amount', 'total_value' => $this->view->currencySymbol . ' Total Value', 'user_id' => 'User (id)']
         );
 
         $this->view->pick('portfolios/list');
