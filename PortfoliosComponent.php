@@ -64,7 +64,7 @@ class PortfoliosComponent extends BaseComponent
     public function viewAction()
     {
         $this->view->currencySymbol = '$';
-        if (isset($this->access->auth->account()['profile']['locale_country_id'])) {
+        if (isset($this->access->auth->account()['profile']['locale_country_id']) && $this->access->auth->account()['profile']['locale_country_id'] !== 0) {
             $country = $this->basepackages->geoCountries->getById((int) $this->access->auth->account()['profile']['locale_country_id']);
 
             if ($country && isset($country['currency_symbol'])) {
