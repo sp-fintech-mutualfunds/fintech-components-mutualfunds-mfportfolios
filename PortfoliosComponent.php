@@ -233,10 +233,17 @@ class PortfoliosComponent extends BaseComponent
 
                 if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
                     $schemesPackage = $this->usepackage(MfSchemes::class);
+                    $schemes = [];
 
                     foreach ($portfolio['investments'] as $amfiCode => &$investment) {
-                        $scheme = $schemesPackage->getMfTypeByAmfiCode($amfiCode);
-                        $portfolio['investments'][$amfiCode]['scheme'] = $scheme;
+                         if (isset($schemes[$amfiCode])) {
+                            $portfolio['investments'][$amfiCode]['scheme'] = $schemes[$amfiCode];
+                         } else {
+                            $schemes[$amfiCode] =
+                                $portfolio['investments'][$amfiCode]['scheme'] =
+                                    $schemesPackage->getMfTypeByAmfiCode($amfiCode);
+                         }
+
 
                         array_walk($investment, function($value, $key) use (&$investment) {
                             if ($key === 'amount' ||
@@ -258,9 +265,13 @@ class PortfoliosComponent extends BaseComponent
 
                     if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
                         foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
-                            $scheme = $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
-
-                            $portfolio['transactions'][$transactionId]['scheme'] = $scheme;
+                            if (isset($schemes[$transaction['amfi_code']])) {
+                                $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['amfi_code']];
+                            } else {
+                                $schemes[$transaction['amfi_code']] =
+                                    $portfolio['transactions'][$transactionId]['scheme'] =
+                                        $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
+                            }
 
                             array_walk($transaction, function($value, $key) use (&$transaction) {
                                 if ($key === 'amount' ||
