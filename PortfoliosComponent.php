@@ -162,7 +162,7 @@ class PortfoliosComponent extends BaseComponent
                         $this->view->strategy = strtolower($strategies[$this->getData()['strategy']]['name']);
                         $this->view->strategyDescription = $strategies[$this->getData()['strategy']]['description'];
                         $this->view->strategyArgs = $strategies[$this->getData()['strategy']]['args'];
-                        $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
+                        $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays(false);
                         $this->view->months = $this->basepackages->workers->schedules->getMonths();
 
                         $this->view->clonePortfolioName =
