@@ -241,7 +241,7 @@ class PortfoliosComponent extends BaseComponent
                          } else {
                             $schemes[$amfiCode] =
                                 $portfolio['investments'][$amfiCode]['scheme'] =
-                                    $schemesPackage->getMfTypeByAmfiCode($amfiCode);
+                                    $schemesPackage->getById($amfiCode);
                          }
 
 
@@ -270,7 +270,7 @@ class PortfoliosComponent extends BaseComponent
                             } else {
                                 $schemes[$transaction['amfi_code']] =
                                     $portfolio['transactions'][$transactionId]['scheme'] =
-                                        $schemesPackage->getMfTypeByAmfiCode($transaction['amfi_code']);
+                                        $schemesPackage->getById($transaction['amfi_code']);
                             }
 
                             array_walk($transaction, function($value, $key) use (&$transaction) {
