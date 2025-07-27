@@ -99,7 +99,7 @@ class PortfoliosComponent extends BaseComponent
 
                     if (count($userBooks) > 0) {
                         foreach ($userBooks as &$userBook) {
-                            if (count($userBook['accounts']) > 0) {
+                            if (isset($userBook['accounts']) && count($userBook['accounts']) > 0) {
                                 foreach ($userBook['accounts'] as $accountKey => $account) {
                                     if ($account['type'] !== 'bank') {
                                         unset($userBook['accounts'][$accountKey]);
@@ -235,13 +235,13 @@ class PortfoliosComponent extends BaseComponent
                     $schemesPackage = $this->usepackage(MfSchemes::class);
                     $schemes = [];
 
-                    foreach ($portfolio['investments'] as $amfiCode => &$investment) {
-                         if (isset($schemes[$amfiCode])) {
-                            $portfolio['investments'][$amfiCode]['scheme'] = $schemes[$amfiCode];
+                    foreach ($portfolio['investments'] as $schemeId => &$investment) {
+                         if (isset($schemes[$schemeId])) {
+                            $portfolio['investments'][$schemeId]['scheme'] = $schemes[$schemeId];
                          } else {
-                            $schemes[$amfiCode] =
-                                $portfolio['investments'][$amfiCode]['scheme'] =
-                                    $schemesPackage->getById($amfiCode);
+                            $schemes[$schemeId] =
+                                $portfolio['investments'][$schemeId]['scheme'] =
+                                    $schemesPackage->getById($schemeId);
                          }
 
 
@@ -265,12 +265,12 @@ class PortfoliosComponent extends BaseComponent
 
                     if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
                         foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
-                            if (isset($schemes[$transaction['amfi_code']])) {
-                                $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['amfi_code']];
+                            if (isset($schemes[$transaction['scheme_id']])) {
+                                $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['scheme_id']];
                             } else {
-                                $schemes[$transaction['amfi_code']] =
+                                $schemes[$transaction['scheme_id']] =
                                     $portfolio['transactions'][$transactionId]['scheme'] =
-                                        $schemesPackage->getById($transaction['amfi_code']);
+                                        $schemesPackage->getById($transaction['scheme_id']);
                             }
 
                             array_walk($transaction, function($value, $key) use (&$transaction) {
