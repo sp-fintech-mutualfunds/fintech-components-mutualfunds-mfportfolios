@@ -120,15 +120,16 @@ class PortfoliosComponent extends BaseComponent
             }
 
             if ($this->getData()['id'] != 0) {
-                $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
-
-                if (!$portfolio) {
-                    return $this->throwIdNotFound();
-                }
-
                 $this->view->strategies = [];
                 $this->view->strategiesArgs = [];
+
                 if ($this->view->mode === 'strategies') {
+                    $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+
+                    if (!$portfolio) {
+                        return $this->throwIdNotFound();
+                    }
+
                     $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
                     $strategiesArr = msort($strategiesArr, 'name');
 
@@ -185,9 +186,15 @@ class PortfoliosComponent extends BaseComponent
 
                     $this->view->strategies = $strategies;
                 } else if ($this->view->mode === 'timeline') {
+                    $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id'], true);
+
+                    if (!$portfolio) {
+                        return $this->throwIdNotFound();
+                    }
+
                     if ($portfolio && isset($portfolio['investments']) && count($portfolio['investments']) > 0) {
                         if ($this->mfPortfoliostimelinePackage->timelineNeedsGeneration($portfolio)) {
-                            $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays();
+                            $this->view->weekdays = $this->basepackages->workers->schedules->getWeekdays(false);
                             $this->view->months = $this->basepackages->workers->schedules->getMonths();
 
                             $this->view->timeline = $this->mfPortfoliostimelinePackage->getTimeline();
@@ -208,12 +215,15 @@ class PortfoliosComponent extends BaseComponent
                                 }
                             }
 
+                            $portfolioId = $portfolio['id'];
 
                             $portfolio = $this->mfPortfoliostimelinePackage->getPortfoliotimelineByPortfolioAndTimeline($portfolio, $getTimelineDate);
 
                             if (!$portfolio) {
                                 return $this->throwIdNotFound();
                             }
+
+                            $portfolio['id'] = $portfolioId;
 
                             $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
                             $this->view->timelineBrowse = 'day';
@@ -226,8 +236,16 @@ class PortfoliosComponent extends BaseComponent
                                 }
                             }
                         }
+
+                        // $this->getProcessedPortfolioPerformancesChunksAction($portfolio);
                     } else {
                         $this->view->mode = 'transact';
+                    }
+                } else {
+                    $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+
+                    if (!$portfolio) {
+                        return $this->throwIdNotFound();
                     }
                 }
 
@@ -243,7 +261,6 @@ class PortfoliosComponent extends BaseComponent
                                 $portfolio['investments'][$schemeId]['scheme'] =
                                     $schemesPackage->getById($schemeId);
                          }
-
 
                         array_walk($investment, function($value, $key) use (&$investment) {
                             if ($key === 'amount' ||
@@ -262,38 +279,40 @@ class PortfoliosComponent extends BaseComponent
                             }
                         });
                     }
+                }
 
-                    if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
-                        foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
-                            if (isset($schemes[$transaction['scheme_id']])) {
-                                $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['scheme_id']];
-                            } else {
-                                $schemes[$transaction['scheme_id']] =
-                                    $portfolio['transactions'][$transactionId]['scheme'] =
-                                        $schemesPackage->getById($transaction['scheme_id']);
-                            }
+                if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
+                    $schemesPackage = $this->usepackage(MfSchemes::class);
 
-                            array_walk($transaction, function($value, $key) use (&$transaction) {
-                                if ($key === 'amount' ||
-                                    $key === 'available_amount' ||
-                                    $key === 'latest_value' ||
-                                    $key === 'diff'
-                                ) {
-                                    if ($value) {
-                                        $transaction[$key] =
-                                            str_replace('EN_ ',
-                                                    '',
-                                                    (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
-                                                        ->formatCurrency($value, 'en_IN')
-                                        );
-                                    }
-                                }
-                            });
+                    foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
+                        if (isset($schemes[$transaction['scheme_id']])) {
+                            $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['scheme_id']];
+                        } else {
+                            $schemes[$transaction['scheme_id']] =
+                                $portfolio['transactions'][$transactionId]['scheme'] =
+                                    $schemesPackage->getById($transaction['scheme_id']);
                         }
 
-                        $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
-                        $portfolio['transactions'] = array_reverse($portfolio['transactions'], true);
+                        array_walk($transaction, function($value, $key) use (&$transaction) {
+                            if ($key === 'amount' ||
+                                $key === 'available_amount' ||
+                                $key === 'latest_value' ||
+                                $key === 'diff'
+                            ) {
+                                if ($value) {
+                                    $transaction[$key] =
+                                        str_replace('EN_ ',
+                                                '',
+                                                (new \NumberFormatter('en_IN', \NumberFormatter::CURRENCY))
+                                                    ->formatCurrency($value, 'en_IN')
+                                    );
+                                }
+                            }
+                        });
                     }
+
+                    $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
+                    $portfolio['transactions'] = array_reverse($portfolio['transactions'], true);
                 }
 
                 array_walk($portfolio, function($value, $key) use (&$portfolio) {
@@ -510,6 +529,31 @@ class PortfoliosComponent extends BaseComponent
         );
     }
 
+    public function getProcessedPortfolioPerformancesChunksAction(&$portfolio)
+    {
+        foreach (['week', 'month', 'threeMonth', 'sixMonth', 'year', 'threeYear', 'fiveYear', 'tenYear', 'all'] as $time) {
+            if ($time === 'week') {
+                if (!isset($portfolio['performances']['performances_chunks'][$time])) {
+                    $portfolio['performances']['performances_chunks'][$time] = false;
+                }
+            } else if ($time !== 'week' && $time !== 'all') {
+                if (isset($portfolio['performances']['performances_chunks'][$time]) &&
+                    count($portfolio['performances']['performances_chunks'][$time]) > 0
+                ) {
+                    $portfolio['performances']['performances_chunks'][$time] = true;
+                } else {
+                    $portfolio['performances']['performances_chunks'][$time] = false;
+                }
+            } else if ($time === 'all') {
+                if (isset($portfolio['performances']['performances_chunks'][$time]) &&
+                    count($portfolio['performances']['performances_chunks'][$time]) > 365
+                ) {
+                    $portfolio['performances']['performances_chunks'][$time] = true;
+                }
+            }
+        }
+    }
+
     /**
      * @acl(name=remove)
      */
@@ -564,7 +608,7 @@ class PortfoliosComponent extends BaseComponent
     {
         $this->requestIsPost();
 
-        $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id']);
+        $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id'], true, true, true, false);
 
         if ($portfolio) {
             $this->mfPortfoliostimelinePackage->getPortfolioTimelineDateByBrowseAction($portfolio, $this->postData());
