@@ -205,6 +205,12 @@ class PortfoliosComponent extends BaseComponent
 
                             return;
                         } else {
+                            $this->getProcessedPortfolioPerformancesChunks($portfolio);
+
+                            $this->view->portfolioPerformancesChunks = $portfolio['performances_chunks']['performances_chunks'];
+
+                            unset($portfolio['performances_chunks']['performances_chunks']);
+
                             $getTimelineDate = $portfolio['start_date'];
 
                             if (isset($this->getData()['date'])) {
@@ -226,7 +232,7 @@ class PortfoliosComponent extends BaseComponent
                             $portfolio['id'] = $portfolioId;
 
                             $this->view->timelineBorwserOptions = $this->mfPortfoliostimelinePackage->getAvailableTimelineBrowserOptions();
-                            $this->view->timelineBrowse = 'day';
+                            $this->view->timelineBrowse = 'transaction';
 
                             if (isset($this->getData()['browse'])) {
                                 $browseKeys = array_keys($this->view->timelineBorwserOptions);
@@ -236,13 +242,17 @@ class PortfoliosComponent extends BaseComponent
                                 }
                             }
                         }
-
-                        // $this->getProcessedPortfolioPerformancesChunksAction($portfolio);
                     } else {
                         $this->view->mode = 'transact';
                     }
                 } else {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
+
+                    $this->getProcessedPortfolioPerformancesChunks($portfolio);
+
+                    $this->view->portfolioPerformancesChunks = $portfolio['performances_chunks']['performances_chunks'];
+
+                    unset($portfolio['performances_chunks']['performances_chunks']);
 
                     if (!$portfolio) {
                         return $this->throwIdNotFound();
@@ -529,26 +539,24 @@ class PortfoliosComponent extends BaseComponent
         );
     }
 
-    public function getProcessedPortfolioPerformancesChunksAction(&$portfolio)
+    public function getProcessedPortfolioPerformancesChunks(&$portfolio)
     {
         foreach (['week', 'month', 'threeMonth', 'sixMonth', 'year', 'threeYear', 'fiveYear', 'tenYear', 'all'] as $time) {
             if ($time === 'week') {
-                if (!isset($portfolio['performances']['performances_chunks'][$time])) {
-                    $portfolio['performances']['performances_chunks'][$time] = false;
+                if (!isset($portfolio['performances_chunks']['performances_chunks'][$time])) {
+                    $portfolio['performances_chunks']['performances_chunks'][$time] = false;
                 }
             } else if ($time !== 'week' && $time !== 'all') {
-                if (isset($portfolio['performances']['performances_chunks'][$time]) &&
-                    count($portfolio['performances']['performances_chunks'][$time]) > 0
+                if (isset($portfolio['performances_chunks']['performances_chunks'][$time]) &&
+                    count($portfolio['performances_chunks']['performances_chunks'][$time]) > 0
                 ) {
-                    $portfolio['performances']['performances_chunks'][$time] = true;
+                    $portfolio['performances_chunks']['performances_chunks'][$time] = true;
                 } else {
-                    $portfolio['performances']['performances_chunks'][$time] = false;
+                    $portfolio['performances_chunks']['performances_chunks'][$time] = false;
                 }
             } else if ($time === 'all') {
-                if (isset($portfolio['performances']['performances_chunks'][$time]) &&
-                    count($portfolio['performances']['performances_chunks'][$time]) > 365
-                ) {
-                    $portfolio['performances']['performances_chunks'][$time] = true;
+                if (count($portfolio['performances_chunks']['performances_chunks'][$time]) > 365) {
+                    $portfolio['performances_chunks']['performances_chunks'][$time] = true;
                 }
             }
         }
@@ -575,7 +583,7 @@ class PortfoliosComponent extends BaseComponent
         $this->requestIsPost();
 
         if (isset($this->postData()['timelineDate'])) {
-            $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id']);
+            $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->postData()['portfolio_id'], true);
 
             if ($portfolio) {
                 $this->mfPortfoliostimelinePackage->forceRecalculateTimeline(
