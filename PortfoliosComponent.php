@@ -35,7 +35,11 @@ class PortfoliosComponent extends BaseComponent
 
     protected $accountingBooksPackage;
 
+    protected $schemesPackage;
+
     protected $today;
+
+    protected $schemes = [];
 
     public function initialize()
     {
@@ -63,6 +67,8 @@ class PortfoliosComponent extends BaseComponent
      */
     public function viewAction()
     {
+        $this->schemesPackage = $this->usePackage(MfSchemes::class);
+
         $this->view->currencySymbol = '$';
         if (isset($this->access->auth->account()['profile']['locale_country_id']) && $this->access->auth->account()['profile']['locale_country_id'] !== 0) {
             $country = $this->basepackages->geoCountries->getById((int) $this->access->auth->account()['profile']['locale_country_id']);
@@ -205,6 +211,18 @@ class PortfoliosComponent extends BaseComponent
 
                             return;
                         } else {
+                            $portfolioInvestments = [];
+
+                            array_walk($portfolio['investments'], function($investment) use (&$portfolioInvestments) {
+                                 if (!isset($this->schemes[$investment['scheme_id']])) {
+                                    $this->schemes[$investment['scheme_id']] = $this->schemesPackage->getById($investment['scheme_id']);
+                                 }
+
+                                $portfolioInvestments[$investment['scheme_id']] = $this->schemes[$investment['scheme_id']]['name'];
+                            });
+
+                            $this->view->portfolioInvestments = $portfolioInvestments;
+
                             $this->getProcessedPortfolioPerformancesChunks($portfolio);
 
                             $this->view->portfolioPerformancesChunks = $portfolio['performances_chunks']['performances_chunks'];
@@ -248,6 +266,20 @@ class PortfoliosComponent extends BaseComponent
                 } else {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
+                    $portfolioInvestments = [];
+
+                    if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
+                        array_walk($portfolio['investments'], function($investment) use (&$portfolioInvestments) {
+                             if (!isset($this->schemes[$investment['scheme_id']])) {
+                                $this->schemes[$investment['scheme_id']] = $this->schemesPackage->getById($investment['scheme_id']);
+                             }
+
+                            $portfolioInvestments[$investment['scheme_id']] = $this->schemes[$investment['scheme_id']]['name'];
+                        });
+                    }
+
+                    $this->view->portfolioInvestments = $portfolioInvestments;
+
                     $this->getProcessedPortfolioPerformancesChunks($portfolio);
 
                     $this->view->portfolioPerformancesChunks = $portfolio['performances_chunks']['performances_chunks'];
@@ -260,16 +292,13 @@ class PortfoliosComponent extends BaseComponent
                 }
 
                 if ($portfolio['investments'] && count($portfolio['investments']) > 0) {
-                    $schemesPackage = $this->usepackage(MfSchemes::class);
-                    $schemes = [];
-
                     foreach ($portfolio['investments'] as $schemeId => &$investment) {
-                         if (isset($schemes[$schemeId])) {
-                            $portfolio['investments'][$schemeId]['scheme'] = $schemes[$schemeId];
+                         if (isset($this->schemes[$schemeId])) {
+                            $portfolio['investments'][$schemeId]['scheme'] = $this->schemes[$schemeId];
                          } else {
-                            $schemes[$schemeId] =
+                            $this->schemes[$schemeId] =
                                 $portfolio['investments'][$schemeId]['scheme'] =
-                                    $schemesPackage->getById($schemeId);
+                                    $this->schemesPackage->getById($schemeId);
                          }
 
                         array_walk($investment, function($value, $key) use (&$investment) {
@@ -292,15 +321,15 @@ class PortfoliosComponent extends BaseComponent
                 }
 
                 if ($portfolio['transactions'] && count($portfolio['transactions']) > 0) {
-                    $schemesPackage = $this->usepackage(MfSchemes::class);
+                    $this->schemesPackage = $this->usepackage(MfSchemes::class);
 
                     foreach ($portfolio['transactions'] as $transactionId => &$transaction) {
-                        if (isset($schemes[$transaction['scheme_id']])) {
-                            $portfolio['transactions'][$transactionId]['scheme'] = $schemes[$transaction['scheme_id']];
+                        if (isset($this->schemes[$transaction['scheme_id']])) {
+                            $portfolio['transactions'][$transactionId]['scheme'] = $this->schemes[$transaction['scheme_id']];
                         } else {
-                            $schemes[$transaction['scheme_id']] =
+                            $this->schemes[$transaction['scheme_id']] =
                                 $portfolio['transactions'][$transactionId]['scheme'] =
-                                    $schemesPackage->getById($transaction['scheme_id']);
+                                    $this->schemesPackage->getById($transaction['scheme_id']);
                         }
 
                         array_walk($transaction, function($value, $key) use (&$transaction) {
@@ -545,21 +574,35 @@ class PortfoliosComponent extends BaseComponent
             if ($time === 'week') {
                 if (!isset($portfolio['performances_chunks']['performances_chunks'][$time])) {
                     $portfolio['performances_chunks']['performances_chunks'][$time] = false;
+                    $chunks = false;
                 }
             } else if ($time !== 'week' && $time !== 'all') {
                 if (isset($portfolio['performances_chunks']['performances_chunks'][$time]) &&
                     count($portfolio['performances_chunks']['performances_chunks'][$time]) > 0
                 ) {
                     $portfolio['performances_chunks']['performances_chunks'][$time] = true;
+                    $chunks = true;
                 } else {
                     $portfolio['performances_chunks']['performances_chunks'][$time] = false;
+                    $chunks = false;
                 }
             } else if ($time === 'all') {
-                if (count($portfolio['performances_chunks']['performances_chunks'][$time]) > 365) {
+                if (isset($portfolio['performances_chunks']['performances_chunks'][$time]) &&
+                    count($portfolio['performances_chunks']['performances_chunks'][$time]) > 365
+                ) {
                     $portfolio['performances_chunks']['performances_chunks'][$time] = true;
+                    $chunks = true;
                 }
             }
         }
+
+        foreach ($portfolio['performances_chunks']['performances_chunks'] as $chunks) {
+            if ($chunks) {
+                return true;
+            }
+        }
+
+        $portfolio['performances_chunks']['performances_chunks'] = false;
     }
 
     /**
@@ -682,5 +725,18 @@ class PortfoliosComponent extends BaseComponent
         } catch (\Exception $e) {
             $this->addResponse($e->getMessage(), 1);
         }
+    }
+
+    public function getPortfolioPerformancesChunksAction()
+    {
+        $this->requestIsPost();
+
+        $this->mfPortfoliosPackage->getPortfolioPerformancesChunks($this->postData());
+
+        $this->addResponse(
+            $this->mfPortfoliosPackage->packagesData->responseMessage,
+            $this->mfPortfoliosPackage->packagesData->responseCode,
+            $this->mfPortfoliosPackage->packagesData->responseData ?? []
+        );
     }
 }
