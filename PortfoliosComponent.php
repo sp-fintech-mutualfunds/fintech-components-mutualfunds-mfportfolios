@@ -129,6 +129,8 @@ class PortfoliosComponent extends BaseComponent
                 $this->view->strategies = [];
                 $this->view->strategiesArgs = [];
 
+                $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
+
                 if ($this->view->mode === 'strategies') {
                     $portfolio = $this->mfPortfoliosPackage->getPortfolioById((int) $this->getData()['id']);
 
@@ -136,7 +138,6 @@ class PortfoliosComponent extends BaseComponent
                         return $this->throwIdNotFound();
                     }
 
-                    $strategiesArr = $this->mfStrategiesPackage->getAll(true)->mfstrategies;
                     $strategiesArr = msort($strategiesArr, 'name');
 
                     $strategies = [];
@@ -348,6 +349,26 @@ class PortfoliosComponent extends BaseComponent
                                 }
                             }
                         });
+
+                        if (isset($transaction['strategy_id'])) {
+                            if ($strategiesArr &&
+                                count($strategiesArr) > 0 &&
+                                isset($transaction['strategy_id']) &&
+                                isset($strategiesArr[$transaction['strategy_id']]['name'])
+                            ) {
+                                $portfolio['transactions'][$transactionId]['strategy_id'] = strtoupper($strategiesArr[$transaction['strategy_id']]['name']);
+                            } else {
+                                $portfolio['transactions'][$transactionId]['strategy_id'] = '-';
+                            }
+                        }
+
+                        if (!isset($transaction['strategy_id'])) {
+                            $portfolio['transactions'][$transactionId]['strategy_id'] = '-';
+                        }
+
+                        if (isset($transaction['transactions']) && count($transaction['transactions']) > 0) {
+                            $transaction['transactions'] = msort(array: $transaction['transactions'], key: 'id', order: SORT_DESC, preserveKey: true);
+                        }
                     }
 
                     $portfolio['transactions'] = msort(array: $portfolio['transactions'], key: 'date', preserveKey: true);
